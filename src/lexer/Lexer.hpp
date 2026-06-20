@@ -1,83 +1,68 @@
 #pragma once
 #include "Token.hpp"
+#include "../diagnostics/Diagnostic.hpp"
+#include "../diagnostics/DiagnosticEngine.hpp"
 #include <string>
 #include <vector>
 
 // ============================================================
-//  LexError — structured error reported by the lexer.
+//  Lexer v2 — integrated with the diagnostic system.
 //
-//  Separate from std::exception so the caller can collect ALL
-//  errors in one pass instead of stopping at the first one.
-//  (GCC's -fmax-errors and Clang's -ferror-limit do the same.)
-// ============================================================
-struct LexError {
-    std::string message;
-    int         line;
-    int         column;
-
-    std::string toString() const {
-        return "[LexError] line " + std::to_string(line) +
-               ", col "          + std::to_string(column) +
-               ": "              + message;
-    }
-};
-
-// ============================================================
-//  Lexer — transforms a source string into a token stream.
+//  Changes from v1:
+//    • LexError removed — Diagnostic is used throughout
+//    • tokenize() returns StageOutput<vector<Token>>
+//      (output + diagnostics in one return value)
+//    • DiagnosticEngine owned by Lexer (created per instance)
+//    • Unterminated block comment now properly diagnosed
 //
-//  Public API (minimal, intentional):
-//    tokenize()   — scan entire source, return all tokens
-//    hasErrors()  — true if any LexErrors were recorded
-//    errors()     — the error list
+//  The public API remains small and clear:
+//    tokenize()  — scan everything, return output + diagnostics
 //
-//  Design decisions:
-//    • Single-pass, O(n) — one character consumed per iteration
-//    • Cursor-based (pos_ / line_ / col_) — no regex, no tables
-//    • Non-throwing — errors collected, not thrown
-//    • const-correct — source held by value (owned)
-//
-//  Alternatives considered:
-//    • Table-driven DFA — faster but much harder to read/maintain
-//    • Flex/re2c generated — industry standard, but hides logic
-//    • Regex-based — simple but 10-100× slower for large files
+//  Backward-compat helpers for tests:
+//    hasErrors() / errors() delegate to the last StageOutput
 // ============================================================
 class Lexer {
 public:
     explicit Lexer(std::string source);
 
-    // Tokenise the entire source and return the token stream.
-    // Always ends with an END_OF_FILE token.
-    std::vector<Token> tokenize();
+    // Primary API — returns tokens + all diagnostics together
+    StageOutput<std::vector<Token>> tokenize();
 
-    bool                     hasErrors() const { return !errors_.empty(); }
-    const std::vector<LexError>& errors() const { return errors_; }
+    // Backward-compatible helpers (delegate to last run's output)
+    bool hasErrors() const { return lastOutput_.hasErrors(); }
+    const std::vector<Diagnostic>& errors() const {
+        return lastOutput_.diagnostics;
+    }
 
 private:
-    // ── Core scanning helpers ─────────────────────────────
+    // ── Core scanning ─────────────────────────────────────
     Token  nextToken();
-
     void   skipWhitespaceAndComments();
-
     Token  lexIdentifierOrKeyword();
     Token  lexNumber();
     Token  lexSymbol();
 
-    // ── Character-level primitives ────────────────────────
-    char   peek()              const;   // look at current char
-    char   peekNext()          const;   // look one ahead
-    char   advance();                   // consume & return current char
-    bool   isAtEnd()           const;
-    bool   match(char expected);        // consume only if matches
+    // ── Character primitives ──────────────────────────────
+    char   peek()        const;
+    char   peekNext()    const;
+    char   advance();
+    bool   isAtEnd()     const;
+    bool   match(char expected);
 
-    // ── Token constructors ────────────────────────────────
-    Token  makeToken(TokenType type, const std::string& lexeme) const;
-    Token  errorToken(const std::string& msg);
+    // ── Token / diagnostic constructors ───────────────────
+    Token  makeToken(TokenType type, const std::string& lexeme,
+                     int startLine, int startCol) const;
+    Token  errorToken(char c);   // emits diagnostic + returns UNKNOWN token
 
     // ── State ─────────────────────────────────────────────
     std::string          source_;
-    std::size_t          pos_;     // current position in source_
-    int                  line_;    // current line (1-based)
-    int                  col_;     // current column (1-based)
+    std::size_t          pos_;
+    int                  line_;
+    int                  col_;
 
-    std::vector<LexError> errors_;
+    DiagnosticEngine     engine_;   // stateless factory
+    std::vector<Diagnostic> pendingDiagnostics_;  // accumulated during scan
+
+    // Stored result from last tokenize() call (for compat helpers)
+    StageOutput<std::vector<Token>> lastOutput_;
 };

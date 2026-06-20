@@ -3,34 +3,32 @@
 #include <vector>
 
 // ============================================================
-//  Helper — lex a string and return the token type sequence.
-//  Strips the trailing EOF token so tests are less verbose.
+//  Helpers — tokenize and extract just types or lexemes.
+//  v2: tokenize() returns StageOutput, so we call .output
 // ============================================================
 static std::vector<TokenType> types(const std::string& src) {
     Lexer lexer(src);
-    std::vector<Token> toks = lexer.tokenize();
-    std::vector<TokenType> result;
-    for (auto& t : toks) {
-        if (t.type != TokenType::END_OF_FILE) result.push_back(t.type);
-    }
-    return result;
+    auto result = lexer.tokenize();
+    std::vector<TokenType> out;
+    for (auto& t : result.output)
+        if (t.type != TokenType::END_OF_FILE) out.push_back(t.type);
+    return out;
 }
 
 static std::vector<std::string> lexemes(const std::string& src) {
     Lexer lexer(src);
-    std::vector<Token> toks = lexer.tokenize();
-    std::vector<std::string> result;
-    for (auto& t : toks) {
-        if (t.type != TokenType::END_OF_FILE) result.push_back(t.lexeme);
-    }
-    return result;
+    auto result = lexer.tokenize();
+    std::vector<std::string> out;
+    for (auto& t : result.output)
+        if (t.type != TokenType::END_OF_FILE) out.push_back(t.lexeme);
+    return out;
 }
 
-// ── Required output test (from spec) ─────────────────────────
+// ── Required output (from spec) ──────────────────────────────
 TEST("required_output: return x + 5 ;", [](){
     Lexer lexer("return x + 5;");
-    auto toks = lexer.tokenize();
-    // Expected: RETURN IDENTIFIER(x) PLUS INTEGER(5) SEMICOLON EOF
+    auto result = lexer.tokenize();
+    auto& toks = result.output;
     ASSERT_EQ((int)toks.size(), 6);
     ASSERT_EQ(toks[0].type, TokenType::KW_RETURN);
     ASSERT_EQ(toks[0].lexeme, std::string("return"));
@@ -41,10 +39,10 @@ TEST("required_output: return x + 5 ;", [](){
     ASSERT_EQ(toks[3].lexeme, std::string("5"));
     ASSERT_EQ(toks[4].type, TokenType::SEMICOLON);
     ASSERT_EQ(toks[5].type, TokenType::END_OF_FILE);
-    ASSERT_TRUE(!lexer.hasErrors());
+    ASSERT_TRUE(!result.hasErrors());
 });
 
-// ── Keywords ─────────────────────────────────────────────────
+// ── Keywords ──────────────────────────────────────────────────
 TEST("keywords: int and return", [](){
     auto t = types("int return");
     ASSERT_EQ((int)t.size(), 2);
@@ -52,7 +50,7 @@ TEST("keywords: int and return", [](){
     ASSERT_EQ(t[1], TokenType::KW_RETURN);
 });
 
-// ── Identifier vs keyword (maximal munch) ────────────────────
+// ── Maximal munch ─────────────────────────────────────────────
 TEST("maximal_munch: returnx is IDENTIFIER not RETURN", [](){
     auto t = types("returnx");
     ASSERT_EQ((int)t.size(), 1);
@@ -66,7 +64,7 @@ TEST("maximal_munch: integer42 is IDENTIFIER", [](){
     ASSERT_EQ(lexemes("integer42")[0], std::string("integer42"));
 });
 
-// ── Integers ─────────────────────────────────────────────────
+// ── Integers ──────────────────────────────────────────────────
 TEST("integer: single digit", [](){
     auto t = types("0");
     ASSERT_EQ((int)t.size(), 1);
@@ -77,7 +75,7 @@ TEST("integer: multi digit", [](){
     ASSERT_EQ(lexemes("12345")[0], std::string("12345"));
 });
 
-// ── Operators ────────────────────────────────────────────────
+// ── Operators ─────────────────────────────────────────────────
 TEST("operators: + - * /", [](){
     auto t = types("+ - * /");
     ASSERT_EQ((int)t.size(), 4);
@@ -111,7 +109,7 @@ TEST("delimiters: { ( ) } ;", [](){
     ASSERT_EQ(t[4], TokenType::SEMICOLON);
 });
 
-// ── Whitespace & newlines ignored ────────────────────────────
+// ── Whitespace ────────────────────────────────────────────────
 TEST("whitespace: tabs newlines ignored", [](){
     auto t = types("int\n\t x\r\n  =\t5 ;");
     ASSERT_EQ((int)t.size(), 5);
@@ -122,14 +120,13 @@ TEST("whitespace: tabs newlines ignored", [](){
     ASSERT_EQ(t[4], TokenType::SEMICOLON);
 });
 
-// ── Single-line comment stripped ─────────────────────────────
+// ── Comments ──────────────────────────────────────────────────
 TEST("comment: single-line // stripped", [](){
     auto t = types("int x; // this is a comment\nreturn x;");
-    ASSERT_EQ((int)t.size(), 6); // int x ; return x ;
+    ASSERT_EQ((int)t.size(), 6);
     ASSERT_EQ(t[3], TokenType::KW_RETURN);
 });
 
-// ── Block comment stripped ────────────────────────────────────
 TEST("comment: block /* */ stripped", [](){
     auto t = types("int /* hello world */ x;");
     ASSERT_EQ((int)t.size(), 3);
@@ -138,16 +135,25 @@ TEST("comment: block /* */ stripped", [](){
     ASSERT_EQ(t[2], TokenType::SEMICOLON);
 });
 
-// ── Source location tracking ─────────────────────────────────
+// ── Source location ───────────────────────────────────────────
 TEST("source_location: line and column correct", [](){
     Lexer lexer("int\nreturn");
-    auto toks = lexer.tokenize();
-    ASSERT_EQ(toks[0].line, 1);
-    ASSERT_EQ(toks[1].line, 2);
-    ASSERT_EQ(toks[1].column, 1);
+    auto result = lexer.tokenize();
+    ASSERT_EQ(result.output[0].line, 1);
+    ASSERT_EQ(result.output[1].line, 2);
+    ASSERT_EQ(result.output[1].column, 1);
 });
 
-// ── Full target program ───────────────────────────────────────
+TEST("source_location: span() matches line and column", [](){
+    Lexer lexer("return");
+    auto result = lexer.tokenize();
+    SourceSpan sp = result.output[0].span();
+    ASSERT_EQ(sp.startLine, 1);
+    ASSERT_EQ(sp.startCol,  1);
+    ASSERT_EQ(sp.length,    6); // "return" is 6 chars
+});
+
+// ── Full program ──────────────────────────────────────────────
 TEST("full_program: int main(){ int x=5; return x+2; }", [](){
     std::string src =
         "int main() {\n"
@@ -155,48 +161,90 @@ TEST("full_program: int main(){ int x=5; return x+2; }", [](){
         "    return x + 2;\n"
         "}\n";
     Lexer lexer(src);
-    auto toks = lexer.tokenize();
-    ASSERT_TRUE(!lexer.hasErrors());
-    // int main ( ) { int x = 5 ; return x + 2 ; } EOF  = 17 tokens
-    ASSERT_EQ((int)toks.size(), 17);
-    ASSERT_EQ(toks[0].type,  TokenType::KW_INT);
-    ASSERT_EQ(toks[1].type,  TokenType::IDENTIFIER);
-    ASSERT_EQ(toks[1].lexeme, std::string("main"));
-    ASSERT_EQ(toks[16].type, TokenType::END_OF_FILE);
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(!result.hasErrors());
+    ASSERT_EQ((int)result.output.size(), 17);  // 16 tokens + EOF
+    ASSERT_EQ(result.output[0].type,  TokenType::KW_INT);
+    ASSERT_EQ(result.output[1].type,  TokenType::IDENTIFIER);
+    ASSERT_EQ(result.output[1].lexeme, std::string("main"));
+    ASSERT_EQ(result.output[16].type, TokenType::END_OF_FILE);
 });
 
 // ── Error recovery ────────────────────────────────────────────
-TEST("error: unknown character @ reported", [](){
+TEST("error: unknown character @ reported as Diagnostic", [](){
     Lexer lexer("int @x;");
-    auto toks = lexer.tokenize();
-    ASSERT_TRUE(lexer.hasErrors());
-    ASSERT_EQ((int)lexer.errors().size(), 1);
-    // Lexer continues after error — still produces int, x, ;, EOF
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(result.hasErrors());
+    ASSERT_EQ((int)result.diagnostics.size(), 1);
+    // Diagnostic has the right kind
+    ASSERT_EQ(result.diagnostics[0].kind,
+              DiagnosticKind::LEX_UnexpectedCharacter);
+    // Lexer continues — still produces int, @(unknown), x, ;, EOF
     bool foundIdent = false;
-    for (auto& t : toks) {
+    for (auto& t : result.output)
         if (t.type == TokenType::IDENTIFIER) foundIdent = true;
-    }
     ASSERT_TRUE(foundIdent);
 });
 
-// ── Empty input ───────────────────────────────────────────────
+TEST("error: unterminated block comment diagnosed", [](){
+    Lexer lexer("int x; /* never closed");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(result.hasErrors());
+    ASSERT_EQ(result.diagnostics[0].kind,
+              DiagnosticKind::LEX_UnterminatedBlockComment);
+});
+
+// ── Diagnostic metadata quality ──────────────────────────────
+TEST("diagnostic: message is non-empty", [](){
+    Lexer lexer("@");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(!result.diagnostics.empty());
+    ASSERT_TRUE(!result.diagnostics[0].message.empty());
+});
+
+TEST("diagnostic: explanation is non-empty", [](){
+    Lexer lexer("@");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(!result.diagnostics[0].explanation.empty());
+});
+
+TEST("diagnostic: fixes are present", [](){
+    Lexer lexer("@");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(!result.diagnostics[0].fixes.empty());
+});
+
+TEST("diagnostic: trace is present", [](){
+    Lexer lexer("@");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(!result.diagnostics[0].trace.empty());
+});
+
+TEST("diagnostic: source span is correct", [](){
+    Lexer lexer("int @x;");
+    auto result = lexer.tokenize();
+    // '@' is at col 5 of line 1
+    ASSERT_EQ(result.diagnostics[0].span.startLine, 1);
+    ASSERT_EQ(result.diagnostics[0].span.startCol,  5);
+});
+
+// ── Edge cases ────────────────────────────────────────────────
 TEST("edge: empty source yields only EOF", [](){
     Lexer lexer("");
-    auto toks = lexer.tokenize();
-    ASSERT_EQ((int)toks.size(), 1);
-    ASSERT_EQ(toks[0].type, TokenType::END_OF_FILE);
+    auto result = lexer.tokenize();
+    ASSERT_EQ((int)result.output.size(), 1);
+    ASSERT_EQ(result.output[0].type, TokenType::END_OF_FILE);
 });
 
-// ── Only whitespace ───────────────────────────────────────────
 TEST("edge: only whitespace yields only EOF", [](){
     Lexer lexer("   \n\t  ");
-    auto toks = lexer.tokenize();
-    ASSERT_EQ((int)toks.size(), 1);
-    ASSERT_EQ(toks[0].type, TokenType::END_OF_FILE);
+    auto result = lexer.tokenize();
+    ASSERT_EQ((int)result.output.size(), 1);
+    ASSERT_EQ(result.output[0].type, TokenType::END_OF_FILE);
 });
 
-// ── main ─────────────────────────────────────────────────────
+// ── main ──────────────────────────────────────────────────────
 int main() {
-    std::cout << "=== Lexer Unit Tests ===\n\n";
+    std::cout << "=== Lexer Unit Tests (v2 — with Diagnostic system) ===\n\n";
     return RUN_ALL_TESTS();
 }

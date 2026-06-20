@@ -1,56 +1,46 @@
 #pragma once
+#include "../core/SourceSpan.hpp"
 #include <string>
 #include <unordered_map>
 
 // ============================================================
 //  TokenType — every token kind the lexer can produce.
-//
-//  Design note: using a strongly-typed enum (enum class) so
-//  TokenType::PLUS can never silently convert to an int.
-//  Industry reference: clang/Basic/TokenKinds.def uses X-macros
-//  for the same purpose; we keep it simple for clarity.
 // ============================================================
-
 enum class TokenType {
     // ── Literals ─────────────────────────────────────────
-    INTEGER_LITERAL,     // 42, 0, 123
+    INTEGER_LITERAL,
 
     // ── Identifiers ──────────────────────────────────────
-    IDENTIFIER,          // x, myVar, main
+    IDENTIFIER,
 
     // ── Keywords ─────────────────────────────────────────
-    KW_INT,              // int
-    KW_RETURN,           // return
+    KW_INT,
+    KW_RETURN,
 
     // ── Operators ────────────────────────────────────────
-    PLUS,                // +
-    MINUS,               // -
-    STAR,                // *
-    SLASH,               // /
-    ASSIGN,              // =
-    EQUAL,               // ==
-    NOT_EQUAL,           // !=
-    LESS,                // <
-    GREATER,             // >
+    PLUS,
+    MINUS,
+    STAR,
+    SLASH,
+    ASSIGN,
+    EQUAL,
+    NOT_EQUAL,
+    LESS,
+    GREATER,
 
     // ── Delimiters ───────────────────────────────────────
-    SEMICOLON,           // ;
-    LPAREN,              // (
-    RPAREN,              // )
-    LBRACE,              // {
-    RBRACE,              // }
-    COMMA,               // ,
+    SEMICOLON,
+    LPAREN,
+    RPAREN,
+    LBRACE,
+    RBRACE,
+    COMMA,
 
     // ── Special ──────────────────────────────────────────
     END_OF_FILE,
-    UNKNOWN              // anything unrecognised — reported as error
+    UNKNOWN
 };
 
-// ============================================================
-//  tokenTypeName — human-readable name for diagnostics/tests.
-//  Keeping this as a free function (not a method) lets us use
-//  it from anywhere without pulling in the full Lexer header.
-// ============================================================
 inline std::string tokenTypeName(TokenType t) {
     switch (t) {
         case TokenType::INTEGER_LITERAL: return "INTEGER_LITERAL";
@@ -81,23 +71,23 @@ inline std::string tokenTypeName(TokenType t) {
 // ============================================================
 //  Token — the fundamental unit the lexer emits.
 //
-//  Holds:
-//    type    — what kind of token this is
-//    lexeme  — the exact source text ("return", "42", "+")
-//    line    — 1-based line number for error messages
-//    column  — 1-based column number
-//
-//  Industry note: Clang's Token is 16 bytes and uses bit-packing
-//  for flags. Ours is intentionally readable — the compiler we
-//  build here prioritises clarity over micro-optimisation.
+//  v2 change: 'line' and 'column' are kept as direct fields
+//  for backward compatibility with existing tests. A span()
+//  accessor derives the full SourceSpan for the diagnostic
+//  system. Future stages will migrate to span() directly.
 // ============================================================
 struct Token {
     TokenType   type;
-    std::string lexeme;   // exact text from source
-    int         line;
-    int         column;
+    std::string lexeme;
+    int         line;    // 1-based start line
+    int         column;  // 1-based start column
 
-    // Convenience: pretty-print for debugging/tests
+    // Derives a SourceSpan from the token's position + lexeme length.
+    SourceSpan span() const {
+        int len = lexeme.empty() ? 1 : (int)lexeme.size();
+        return SourceSpan::token(line, column, len);
+    }
+
     std::string toString() const {
         std::string s = tokenTypeName(type);
         if (!lexeme.empty() &&
@@ -109,11 +99,7 @@ struct Token {
 };
 
 // ============================================================
-//  Keyword table — maps source text → TokenType.
-//
-//  Kept here (next to Token) so anyone adding a keyword touches
-//  one place. Alternative: generate this from a .def file (GCC/
-//  Clang approach) to avoid duplication at scale.
+//  Keyword table
 // ============================================================
 inline const std::unordered_map<std::string, TokenType>& keywords() {
     static const std::unordered_map<std::string, TokenType> table = {

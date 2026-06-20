@@ -1,12 +1,8 @@
 #include "Lexer.hpp"
 #include <cctype>
-#include <stdexcept>
 
-// ────────────────────────────────────────────────────────────
-//  Constructor
-// ────────────────────────────────────────────────────────────
 Lexer::Lexer(std::string source)
-    : source_(std::move(source))  // move — no copy of potentially large string
+    : source_(std::move(source))
     , pos_(0)
     , line_(1)
     , col_(1)
@@ -14,14 +10,9 @@ Lexer::Lexer(std::string source)
 
 // ────────────────────────────────────────────────────────────
 //  tokenize() — public entry point
-//
-//  Repeatedly calls nextToken() until EOF.
-//  Guarantees: result.back().type == END_OF_FILE always.
-//
-//  Time complexity: O(n) where n = source length.
-//  Each character is visited at most twice (peek + advance).
-// ────────────────────────────────────────────────────────────
-std::vector<Token> Lexer::tokenize() {
+// ──────────────────────────────────────────────────────────���─
+StageOutput<std::vector<Token>> Lexer::tokenize() {
+    pendingDiagnostics_.clear();
     std::vector<Token> tokens;
 
     while (true) {
@@ -30,39 +21,27 @@ std::vector<Token> Lexer::tokenize() {
         if (tok.type == TokenType::END_OF_FILE) break;
     }
 
-    return tokens;
+    lastOutput_.output      = std::move(tokens);
+    lastOutput_.diagnostics = std::move(pendingDiagnostics_);
+    return lastOutput_;
 }
 
 // ────────────────────────────────────────────────────────────
-//  nextToken() — produce exactly one token from current pos_
-//
-//  Flow:
-//    1. Skip whitespace / comments
-//    2. Record start position for error messages
-//    3. Dispatch on first character
+//  nextToken
 // ────────────────────────────────────────────────────────────
 Token Lexer::nextToken() {
     skipWhitespaceAndComments();
-
-    if (isAtEnd()) {
-        return makeToken(TokenType::END_OF_FILE, "");
-    }
+    if (isAtEnd()) return makeToken(TokenType::END_OF_FILE, "", line_, col_);
 
     char c = peek();
-
     if (std::isalpha(c) || c == '_') return lexIdentifierOrKeyword();
     if (std::isdigit(c))             return lexNumber();
     return lexSymbol();
 }
 
 // ────────────────────────────────────────────────────────────
-//  skipWhitespaceAndComments()
-//
-//  Handles:
-//    • spaces, tabs, carriage returns
-//    • newlines (increments line counter)
-//    • // single-line comments
-//    • /* */ block comments (nested NOT supported — matches C)
+//  skipWhitespaceAndComments
+//  v2 addition: diagnoses unterminated block comments
 // ────────────────────────────────────────────────────────────
 void Lexer::skipWhitespaceAndComments() {
     while (!isAtEnd()) {
@@ -70,43 +49,37 @@ void Lexer::skipWhitespaceAndComments() {
 
         if (c == ' ' || c == '\t' || c == '\r') {
             advance();
-
         } else if (c == '\n') {
-            advance();
-            line_++;
-            col_ = 1;   // reset column on new line
-
+            advance(); line_++; col_ = 1;
         } else if (c == '/' && peekNext() == '/') {
-            // Single-line comment: consume until end of line
             while (!isAtEnd() && peek() != '\n') advance();
-
         } else if (c == '/' && peekNext() == '*') {
-            // Block comment: consume until */
-            advance(); advance();  // consume '/' and '*'
+            int startLine = line_;
+            int startCol  = col_;
+            advance(); advance(); // consume '/*'
+            bool closed = false;
             while (!isAtEnd()) {
-                if (peek() == '\n') { advance(); line_++; col_ = 1; }
+                if (peek() == '\n')          { advance(); line_++; col_ = 1; }
                 else if (peek() == '*' && peekNext() == '/') {
-                    advance(); advance();  // consume '*' and '/'
+                    advance(); advance(); // consume '*/'
+                    closed = true;
                     break;
-                } else {
-                    advance();
-                }
+                } else { advance(); }
+            }
+            if (!closed) {
+                // Unterminated block comment — diagnose and stop scanning
+                SourceSpan span = SourceSpan::token(startLine, startCol, 2);
+                pendingDiagnostics_.push_back(
+                    engine_.unterminatedComment(span));
             }
         } else {
-            break;  // real token starts here
+            break;
         }
     }
 }
 
 // ────────────────────────────────────────────────────────────
-//  lexIdentifierOrKeyword()
-//
-//  Greedy match: consume [a-zA-Z_][a-zA-Z0-9_]*
-//  Then look up in keyword table.
-//
-//  Industry note: this is called "maximal munch" — the lexer
-//  always takes the longest possible match. "returnx" is an
-//  IDENTIFIER, not RETURN + IDENTIFIER.
+//  lexIdentifierOrKeyword
 // ────────────────────────────────────────────────────────────
 Token Lexer::lexIdentifierOrKeyword() {
     int startLine = line_;
@@ -117,26 +90,14 @@ Token Lexer::lexIdentifierOrKeyword() {
         lexeme += advance();
     }
 
-    // Keyword lookup — O(1) average via unordered_map
     const auto& kw = keywords();
     auto it = kw.find(lexeme);
     TokenType type = (it != kw.end()) ? it->second : TokenType::IDENTIFIER;
-
-    // Use makeToken but override line/col to start of lexeme
-    Token t;
-    t.type   = type;
-    t.lexeme = lexeme;
-    t.line   = startLine;
-    t.column = startCol;
-    return t;
+    return makeToken(type, lexeme, startLine, startCol);
 }
 
 // ────────────────────────────────────────────────────────────
-//  lexNumber()
-//
-//  Currently handles unsigned decimal integers only.
-//  Extension points (marked TODO) show where hex/float/suffix
-//  support would be added — as a real compiler would need.
+//  lexNumber
 // ────────────────────────────────────────────────────────────
 Token Lexer::lexNumber() {
     int startLine = line_;
@@ -146,24 +107,11 @@ Token Lexer::lexNumber() {
     while (!isAtEnd() && std::isdigit(peek())) {
         lexeme += advance();
     }
-
-    // TODO: handle '.' for float literals
-    // TODO: handle "0x" prefix for hex literals
-    // TODO: handle 'u', 'l', 'll' suffixes
-
-    Token t;
-    t.type   = TokenType::INTEGER_LITERAL;
-    t.lexeme = lexeme;
-    t.line   = startLine;
-    t.column = startCol;
-    return t;
+    return makeToken(TokenType::INTEGER_LITERAL, lexeme, startLine, startCol);
 }
 
 // ────────────────────────────────────────────────────────────
-//  lexSymbol()
-//
-//  Single- and double-character operator/punctuation tokens.
-//  Uses match() for two-char lookahead (==, !=).
+//  lexSymbol
 // ────────────────────────────────────────────────────────────
 Token Lexer::lexSymbol() {
     int startLine = line_;
@@ -171,33 +119,30 @@ Token Lexer::lexSymbol() {
     char c = advance();
 
     switch (c) {
-        case '+': return makeToken(TokenType::PLUS,      "+");
-        case '-': return makeToken(TokenType::MINUS,     "-");
-        case '*': return makeToken(TokenType::STAR,      "*");
-        case '/': return makeToken(TokenType::SLASH,     "/");
-        case ';': return makeToken(TokenType::SEMICOLON, ";");
-        case '(': return makeToken(TokenType::LPAREN,    "(");
-        case ')': return makeToken(TokenType::RPAREN,    ")");
-        case '{': return makeToken(TokenType::LBRACE,    "{");
-        case '}': return makeToken(TokenType::RBRACE,    "}");
-        case ',': return makeToken(TokenType::COMMA,     ",");
-        case '<': return makeToken(TokenType::LESS,      "<");
-        case '>': return makeToken(TokenType::GREATER,   ">");
+        case '+': return makeToken(TokenType::PLUS,      "+", startLine, startCol);
+        case '-': return makeToken(TokenType::MINUS,     "-", startLine, startCol);
+        case '*': return makeToken(TokenType::STAR,      "*", startLine, startCol);
+        case '/': return makeToken(TokenType::SLASH,     "/", startLine, startCol);
+        case ';': return makeToken(TokenType::SEMICOLON, ";", startLine, startCol);
+        case '(': return makeToken(TokenType::LPAREN,    "(", startLine, startCol);
+        case ')': return makeToken(TokenType::RPAREN,    ")", startLine, startCol);
+        case '{': return makeToken(TokenType::LBRACE,    "{", startLine, startCol);
+        case '}': return makeToken(TokenType::RBRACE,    "}", startLine, startCol);
+        case ',': return makeToken(TokenType::COMMA,     ",", startLine, startCol);
+        case '<': return makeToken(TokenType::LESS,      "<", startLine, startCol);
+        case '>': return makeToken(TokenType::GREATER,   ">", startLine, startCol);
 
         case '=':
-            if (match('=')) return makeToken(TokenType::EQUAL,  "==");
-            return makeToken(TokenType::ASSIGN, "=");
+            if (match('=')) return makeToken(TokenType::EQUAL,    "==", startLine, startCol);
+            return makeToken(TokenType::ASSIGN, "=", startLine, startCol);
 
         case '!':
-            if (match('=')) return makeToken(TokenType::NOT_EQUAL, "!=");
-            return errorToken(std::string("unexpected character '") + c + "'");
+            if (match('=')) return makeToken(TokenType::NOT_EQUAL, "!=", startLine, startCol);
+            return errorToken(c);
 
         default:
-            return errorToken(std::string("unexpected character '") + c + "'");
+            return errorToken(c);
     }
-    // Note: startLine/startCol captured but makeToken uses current line_/col_.
-    // For single-char tokens they're the same. For multi-char we'd pass them.
-    (void)startLine; (void)startCol;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -214,8 +159,6 @@ char Lexer::peekNext() const {
     return source_[pos_ + 1];
 }
 
-// advance() — consumes current character and moves pos_ forward.
-// Also increments column counter (newlines handled in skip).
 char Lexer::advance() {
     char c = source_[pos_++];
     col_++;
@@ -226,29 +169,30 @@ bool Lexer::isAtEnd() const {
     return pos_ >= source_.size();
 }
 
-// match() — conditional advance: only consumes if next char matches.
-// Used for two-character tokens like == and !=.
 bool Lexer::match(char expected) {
     if (isAtEnd() || source_[pos_] != expected) return false;
     advance();
     return true;
 }
 
-Token Lexer::makeToken(TokenType type, const std::string& lexeme) const {
+Token Lexer::makeToken(TokenType type, const std::string& lexeme,
+                        int startLine, int startCol) const {
     Token t;
     t.type   = type;
     t.lexeme = lexeme;
-    t.line   = line_;
-    t.column = col_;
+    t.line   = startLine;
+    t.column = startCol;
     return t;
 }
 
-Token Lexer::errorToken(const std::string& msg) {
-    errors_.push_back({ msg, line_, col_ });
+Token Lexer::errorToken(char c) {
+    SourceSpan span = SourceSpan::point(line_, col_ - 1);
+    pendingDiagnostics_.push_back(engine_.unexpectedChar(c, span));
+
     Token t;
     t.type   = TokenType::UNKNOWN;
-    t.lexeme = "";
+    t.lexeme = std::string(1, c);
     t.line   = line_;
-    t.column = col_;
+    t.column = col_ - 1;
     return t;
 }
