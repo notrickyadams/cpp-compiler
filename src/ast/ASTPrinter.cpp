@@ -83,7 +83,9 @@ void ASTPrinter::visit(ReturnStmtNode& n) {
 }
 
 void ASTPrinter::visit(BinaryExprNode& n) {
-    line("BinaryOp(" + n.op + ")");
+    std::string label = "BinaryOp(" + n.op + ")";
+    if (!n.resolvedType.empty()) label += "  [" + n.resolvedType + "]";
+    line(label);
     push();
     if (n.left)  n.left->accept(*this);
     if (n.right) n.right->accept(*this);
@@ -91,9 +93,13 @@ void ASTPrinter::visit(BinaryExprNode& n) {
 }
 
 void ASTPrinter::visit(IdentifierNode& n) {
-    line("Identifier(" + n.name + ")");
+    std::string label = "Identifier(" + n.name + ")";
+    if (!n.resolvedType.empty()) label += "  [" + n.resolvedType + "]";
+    line(label);
 }
 
 void ASTPrinter::visit(IntLiteralNode& n) {
-    line("Number(" + std::to_string(n.value) + ")");
+    std::string label = "Number(" + std::to_string(n.value) + ")";
+    if (!n.resolvedType.empty()) label += "  [" + n.resolvedType + "]";
+    line(label);
 }

@@ -61,7 +61,8 @@ public:
 //    everything — no manual cleanup needed.
 // ============================================================
 struct ASTNode {
-    SourceSpan span;
+    SourceSpan  span;
+    std::string resolvedType;  // set by SemanticAnalyzer ("int", "bool", "")
 
     virtual ~ASTNode() = default;
 
