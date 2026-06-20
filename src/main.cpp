@@ -1,112 +1,109 @@
 #include <iostream>
 #include <string>
 #include "lexer/Lexer.hpp"
+#include "parser/Parser.hpp"
+#include "ast/ASTPrinter.hpp"
 #include "diagnostics/DiagnosticCollector.hpp"
 
-// ============================================================
-//  main.cpp — interactive driver.
-//
-//  Modes:
-//    1. Demo: target program (clean)
-//    2. Demo: error cases (diagnostic showcase)
-//    3. REPL
-// ============================================================
-
-static void printTokens(const std::vector<Token>& tokens) {
-    for (const Token& tok : tokens) {
-        std::cout << "  [" << tok.toString() << "]"
-                  << "  line=" << tok.line
-                  << "  col="  << tok.column
-                  << "\n";
-    }
-}
-
-static void runSource(const std::string& src,
-                      const std::string& label,
-                      bool showDiagnosticsFull = false) {
-    std::cout << "\n";
-    std::cout << "====  " << label << "  ====\n";
+static void compile(const std::string& src,
+                    const std::string& label,
+                    bool showFullDiag = false) {
+    std::cout << "\n" << std::string(62, '=') << "\n";
+    std::cout << "  " << label << "\n";
+    std::cout << std::string(62, '=') << "\n";
     std::cout << "Source:\n" << src << "\n";
 
+    DiagnosticCollector collector;
+
+    // ── Stage 1: Lex ────────────────────────────────────
     Lexer lexer(src);
-    auto result = lexer.tokenize();
+    auto lexOut = lexer.tokenize();
+    collector.addAll(lexOut.diagnostics);
 
-    std::cout << "Tokens:\n";
-    printTokens(result.output);
+    std::cout << "\nTokens:\n";
+    for (auto& tok : lexOut.output) {
+        if (tok.type == TokenType::END_OF_FILE) break;
+        std::cout << "  [" << tok.toString() << "]"
+                  << "  line=" << tok.line
+                  << "  col="  << tok.column << "\n";
+    }
 
-    if (!result.diagnostics.empty()) {
-        DiagnosticCollector collector;
-        collector.addAll(result.diagnostics);
+    if (collector.hasErrors()) {
+        std::cout << "\nLex errors — stopping before parse.\n";
+        collector.render(std::cout, src);
+        return;
+    }
 
+    // ── Stage 2: Parse ──────────────────────────────────
+    Parser parser(lexOut.output);
+    auto parseOut = parser.parse();
+    collector.addAll(parseOut.diagnostics);
+
+    std::cout << "\nAST:\n";
+    if (parseOut.output) {
+        ASTPrinter printer(std::cout);
+        parseOut.output->accept(printer);
+    }
+
+    if (collector.hasErrors()) {
         std::cout << "\n";
-        if (showDiagnosticsFull) {
+        if (showFullDiag) {
             collector.render(std::cout, src);
         } else {
             collector.renderCompact(std::cout);
         }
+    } else {
+        std::cout << "\nCompilation OK — no errors.\n";
     }
 }
 
 int main() {
-    std::cout << "cpp-compiler  |  Explainable Diagnostics  |  Stage 1: Lexer\n";
-    std::cout << std::string(62, '=') << "\n";
+    std::cout << "cpp-compiler  |  Explainable Compiler  |  Stages 1-2: Lexer + Parser\n";
 
-    // ── Demo 1: clean program ─────────────────────────────
-    runSource(
+    // ── Demo 1: target program (clean) ──────────────────
+    compile(
         "int main() {\n"
         "    int x = 5;\n"
         "    return x + 2;\n"
         "}\n",
-        "Target program (clean)"
+        "Target program — clean"
     );
 
-    // ── Demo 2: required output from spec ─────────────────
-    runSource("return x + 5;", "Required spec output");
+    // ── Demo 2: expression precedence ───────────────────
+    compile(
+        "int compute() {\n"
+        "    int a = 1;\n"
+        "    int b = 2;\n"
+        "    return a + b * 3;\n"
+        "}\n",
+        "Operator precedence: a + b * 3"
+    );
 
-    // ── Demo 3: EXPLAINABLE diagnostic showcase ───────────
-    std::cout << "\n\n";
-    std::cout << "====  EXPLAINABLE DIAGNOSTIC SHOWCASE  ====\n";
-    std::cout << "This is what separates this compiler from traditional compilers.\n";
-    std::cout << "Every error includes: WHERE, WHY, HOW TO FIX, and INTERNAL TRACE.\n";
+    // ── Demo 3: parse error — missing semicolon ──────────
+    compile(
+        "int main() {\n"
+        "    int x = 5\n"
+        "    return x + 2;\n"
+        "}\n",
+        "Parse error: missing semicolon",
+        true
+    );
 
-    {
-        std::string src = "int @x = 5;";
-        std::cout << "\nSource: " << src << "\n\n";
-        Lexer lexer(src);
-        auto result = lexer.tokenize();
-        DiagnosticCollector collector;
-        collector.addAll(result.diagnostics);
-        collector.render(std::cout, src);
-    }
+    // ── Demo 4: parse error — missing closing brace ─────
+    compile(
+        "int main() {\n"
+        "    return 42;\n",
+        "Parse error: missing '}'",
+        true
+    );
 
-    {
-        std::string src = "int x = 5; /* unterminated comment";
-        std::cout << "\nSource: " << src << "\n\n";
-        Lexer lexer(src);
-        auto result = lexer.tokenize();
-        DiagnosticCollector collector;
-        collector.addAll(result.diagnostics);
-        collector.render(std::cout, src);
-    }
-
-    // ── Demo 4: JSON output (for visualizer) ─────────────
-    std::cout << "\n====  JSON OUTPUT (visualizer feed)  ====\n";
-    {
-        std::string src = "int @x;";
-        Lexer lexer(src);
-        auto result = lexer.tokenize();
-        DiagnosticCollector collector;
-        collector.addAll(result.diagnostics);
-        collector.renderJson(std::cout, src);
-    }
-
-    // ── REPL ─────────────────────────────────────────────
-    std::cout << "\n====  Interactive REPL (empty line to quit)  ====\n";
+    // ── REPL ────────────────────────────────────────────
+    std::cout << "\n\n=== Interactive REPL (empty line to quit) ===\n";
     std::string line;
     while (true) {
-        std::cout << "lex> ";
+        std::cout << "compile> ";
         if (!std::getline(std::cin, line) || line.empty()) break;
-        runSource(line, "input", true);
+        compile(line, "input", true);
     }
 
     return 0;

@@ -1,0 +1,319 @@
+#include "test_runner.hpp"
+#include "../src/lexer/Lexer.hpp"
+#include "../src/parser/Parser.hpp"
+#include "../src/ast/Nodes.hpp"
+#include "../src/ast/ASTPrinter.hpp"
+#include <sstream>
+#include <memory>
+
+// ============================================================
+//  Helpers
+// ============================================================
+
+// Lex + parse a source string, return the StageOutput
+static StageOutput<std::unique_ptr<ProgramNode>>
+parseSource(const std::string& src) {
+    Lexer lexer(src);
+    auto lexOut = lexer.tokenize();
+    Parser parser(lexOut.output);
+    return parser.parse();
+}
+
+// Lex + parse, return the printed AST string
+static std::string astString(const std::string& src) {
+    auto out = parseSource(src);
+    if (!out.output) return "<null>";
+    std::ostringstream oss;
+    ASTPrinter printer(oss);
+    out.output->accept(printer);
+    return oss.str();
+}
+
+// ── Required spec output ──────────────────────────────────────
+TEST("spec: target program parses to correct AST shape", [](){
+    auto out = parseSource(
+        "int main() {\n"
+        "    int x = 5;\n"
+        "    return x + 2;\n"
+        "}\n"
+    );
+    ASSERT_TRUE(!out.hasErrors());
+    ASSERT_TRUE(out.output != nullptr);
+
+    ProgramNode* prog = out.output.get();
+    ASSERT_EQ((int)prog->functions.size(), 1);
+
+    FunctionDeclNode* fn = prog->functions[0].get();
+    ASSERT_EQ(fn->name,       std::string("main"));
+    ASSERT_EQ(fn->returnType, std::string("int"));
+    ASSERT_TRUE(fn->body != nullptr);
+    ASSERT_EQ((int)fn->body->statements.size(), 2);
+});
+
+// ── VarDecl ───────────────────────────────────────────────────
+TEST("vardecl: int x = 5 parsed correctly", [](){
+    auto out = parseSource("int f() { int x = 5; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    auto& stmts = out.output->functions[0]->body->statements;
+    ASSERT_EQ((int)stmts.size(), 1);
+
+    VarDeclNode* decl = dynamic_cast<VarDeclNode*>(stmts[0].get());
+    ASSERT_TRUE(decl != nullptr);
+    ASSERT_EQ(decl->typeName, std::string("int"));
+    ASSERT_EQ(decl->name,     std::string("x"));
+    ASSERT_TRUE(decl->initializer != nullptr);
+
+    IntLiteralNode* lit = dynamic_cast<IntLiteralNode*>(decl->initializer.get());
+    ASSERT_TRUE(lit != nullptr);
+    ASSERT_EQ(lit->value, 5);
+});
+
+TEST("vardecl: int x without init is valid", [](){
+    auto out = parseSource("int f() { int x; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    auto& stmts = out.output->functions[0]->body->statements;
+    VarDeclNode* decl = dynamic_cast<VarDeclNode*>(stmts[0].get());
+    ASSERT_TRUE(decl != nullptr);
+    ASSERT_TRUE(decl->initializer == nullptr);
+});
+
+// ── ReturnStmt ────────────────────────────────────────────────
+TEST("return: return integer literal", [](){
+    auto out = parseSource("int f() { return 42; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    auto& stmts = out.output->functions[0]->body->statements;
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(stmts[0].get());
+    ASSERT_TRUE(ret != nullptr);
+
+    IntLiteralNode* lit = dynamic_cast<IntLiteralNode*>(ret->value.get());
+    ASSERT_TRUE(lit != nullptr);
+    ASSERT_EQ(lit->value, 42);
+});
+
+TEST("return: return identifier", [](){
+    auto out = parseSource("int f() { return x; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    auto& stmts = out.output->functions[0]->body->statements;
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(stmts[0].get());
+    IdentifierNode* id  = dynamic_cast<IdentifierNode*>(ret->value.get());
+    ASSERT_TRUE(id != nullptr);
+    ASSERT_EQ(id->name, std::string("x"));
+});
+
+// ── BinaryExpr ────────────────────────────────────────────────
+TEST("binary: x + 2 produces BinaryExprNode with op +", [](){
+    auto out = parseSource("int f() { return x + 2; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[0].get());
+    BinaryExprNode* bin = dynamic_cast<BinaryExprNode*>(ret->value.get());
+
+    ASSERT_TRUE(bin != nullptr);
+    ASSERT_EQ(bin->op, std::string("+"));
+
+    IdentifierNode* left = dynamic_cast<IdentifierNode*>(bin->left.get());
+    IntLiteralNode* right = dynamic_cast<IntLiteralNode*>(bin->right.get());
+    ASSERT_TRUE(left  != nullptr);
+    ASSERT_TRUE(right != nullptr);
+    ASSERT_EQ(left->name,  std::string("x"));
+    ASSERT_EQ(right->value, 2);
+});
+
+TEST("binary: operators - * / parsed", [](){
+    auto out1 = parseSource("int f() { return a - b; }");
+    auto out2 = parseSource("int f() { return a * b; }");
+    auto out3 = parseSource("int f() { return a / b; }");
+    ASSERT_TRUE(!out1.hasErrors());
+    ASSERT_TRUE(!out2.hasErrors());
+    ASSERT_TRUE(!out3.hasErrors());
+});
+
+// ── Operator precedence (critical correctness test) ──────────
+TEST("precedence: a + b * 3 => Add(a, Mul(b,3)) not Mul(Add(a,b),3)", [](){
+    auto out = parseSource("int f() { return a + b * 3; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[0].get());
+    BinaryExprNode* root = dynamic_cast<BinaryExprNode*>(ret->value.get());
+
+    // Root should be +
+    ASSERT_TRUE(root != nullptr);
+    ASSERT_EQ(root->op, std::string("+"));
+
+    // Left of + should be identifier 'a'
+    IdentifierNode* leftId = dynamic_cast<IdentifierNode*>(root->left.get());
+    ASSERT_TRUE(leftId != nullptr);
+    ASSERT_EQ(leftId->name, std::string("a"));
+
+    // Right of + should be * (higher precedence binds first)
+    BinaryExprNode* rightMul = dynamic_cast<BinaryExprNode*>(root->right.get());
+    ASSERT_TRUE(rightMul != nullptr);
+    ASSERT_EQ(rightMul->op, std::string("*"));
+});
+
+TEST("precedence: 1 + 2 + 3 is left-associative: (1+2)+3", [](){
+    auto out = parseSource("int f() { return 1 + 2 + 3; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[0].get());
+    BinaryExprNode* root = dynamic_cast<BinaryExprNode*>(ret->value.get());
+
+    // Root is +, its LEFT child should also be a + (left-assoc)
+    ASSERT_TRUE(root != nullptr);
+    ASSERT_EQ(root->op, std::string("+"));
+    BinaryExprNode* leftPlus = dynamic_cast<BinaryExprNode*>(root->left.get());
+    ASSERT_TRUE(leftPlus != nullptr);
+    ASSERT_EQ(leftPlus->op, std::string("+"));
+});
+
+// ── Grouped expressions ───────────────────────────────────────
+TEST("grouped: (a + b) * 3 forces different tree than a + b * 3", [](){
+    auto out = parseSource("int f() { return (a + b) * 3; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[0].get());
+    BinaryExprNode* root = dynamic_cast<BinaryExprNode*>(ret->value.get());
+
+    // Root should be *
+    ASSERT_TRUE(root != nullptr);
+    ASSERT_EQ(root->op, std::string("*"));
+
+    // Left of * should be + (from the parenthesised group)
+    BinaryExprNode* leftPlus = dynamic_cast<BinaryExprNode*>(root->left.get());
+    ASSERT_TRUE(leftPlus != nullptr);
+    ASSERT_EQ(leftPlus->op, std::string("+"));
+});
+
+// ── Function structure ────────────────────────────────────────
+TEST("function: name and return type stored correctly", [](){
+    auto out = parseSource("int compute() { return 0; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    FunctionDeclNode* fn = out.output->functions[0].get();
+    ASSERT_EQ(fn->name,       std::string("compute"));
+    ASSERT_EQ(fn->returnType, std::string("int"));
+});
+
+TEST("function: params parsed correctly", [](){
+    auto out = parseSource("int add(int a, int b) { return a; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    FunctionDeclNode* fn = out.output->functions[0].get();
+    ASSERT_EQ((int)fn->params.size(), 2);
+    ASSERT_EQ(fn->params[0].name,     std::string("a"));
+    ASSERT_EQ(fn->params[0].typeName, std::string("int"));
+    ASSERT_EQ(fn->params[1].name,     std::string("b"));
+});
+
+TEST("function: multiple functions in one program", [](){
+    auto out = parseSource(
+        "int foo() { return 1; }\n"
+        "int bar() { return 2; }\n"
+    );
+    ASSERT_TRUE(!out.hasErrors());
+    ASSERT_EQ((int)out.output->functions.size(), 2);
+    ASSERT_EQ(out.output->functions[0]->name, std::string("foo"));
+    ASSERT_EQ(out.output->functions[1]->name, std::string("bar"));
+});
+
+// ── Multiple statements in body ───────────────────────────────
+TEST("block: multiple statements parsed in order", [](){
+    auto out = parseSource(
+        "int main() {\n"
+        "    int x = 5;\n"
+        "    int y = 10;\n"
+        "    return x;\n"
+        "}\n"
+    );
+    ASSERT_TRUE(!out.hasErrors());
+    ASSERT_EQ((int)out.output->functions[0]->body->statements.size(), 3);
+});
+
+// ── ASTPrinter output ─────────────────────────────────────────
+TEST("printer: target program produces expected text", [](){
+    std::string txt = astString(
+        "int main() {\n"
+        "    int x = 5;\n"
+        "    return x + 2;\n"
+        "}\n"
+    );
+    ASSERT_TRUE(txt.find("Function: main")  != std::string::npos);
+    ASSERT_TRUE(txt.find("VarDecl: int x")  != std::string::npos);
+    ASSERT_TRUE(txt.find("Return:")          != std::string::npos);
+    ASSERT_TRUE(txt.find("BinaryOp(+)")      != std::string::npos);
+    ASSERT_TRUE(txt.find("Identifier(x)")    != std::string::npos);
+    ASSERT_TRUE(txt.find("Number(2)")        != std::string::npos);
+});
+
+// ── Error cases ───────────────────────────────────────────────
+TEST("error: missing semicolon after var decl produces diagnostic", [](){
+    auto out = parseSource("int f() { int x = 5 return x; }");
+    ASSERT_TRUE(out.hasErrors());
+    ASSERT_EQ(out.diagnostics[0].kind, DiagnosticKind::PARSE_UnexpectedToken);
+});
+
+TEST("error: missing closing brace produces diagnostic", [](){
+    auto out = parseSource("int f() { return 1;");
+    ASSERT_TRUE(out.hasErrors());
+});
+
+TEST("error: diagnostic has explanation and fixes", [](){
+    auto out = parseSource("int f() { int x = 5 return x; }");
+    ASSERT_TRUE(!out.diagnostics.empty());
+    ASSERT_TRUE(!out.diagnostics[0].explanation.empty());
+    ASSERT_TRUE(!out.diagnostics[0].fixes.empty());
+    ASSERT_TRUE(!out.diagnostics[0].trace.empty());
+});
+
+TEST("error: parser continues after error (error recovery)", [](){
+    // Missing semicolon — parser should still find the return statement
+    auto out = parseSource(
+        "int f() {\n"
+        "    int x = 5\n"        // missing ;
+        "    return x + 1;\n"
+        "}\n"
+    );
+    // Should have an error
+    ASSERT_TRUE(out.hasErrors());
+    // But should still produce a program node (not nullptr)
+    ASSERT_TRUE(out.output != nullptr);
+});
+
+// ── Equality operators ────────────────────────────────────────
+TEST("equality: == and != parsed correctly", [](){
+    auto out1 = parseSource("int f() { return a == b; }");
+    auto out2 = parseSource("int f() { return a != b; }");
+    ASSERT_TRUE(!out1.hasErrors());
+    ASSERT_TRUE(!out2.hasErrors());
+
+    ReturnStmtNode* ret1 = dynamic_cast<ReturnStmtNode*>(
+        out1.output->functions[0]->body->statements[0].get());
+    BinaryExprNode* eq = dynamic_cast<BinaryExprNode*>(ret1->value.get());
+    ASSERT_TRUE(eq != nullptr);
+    ASSERT_EQ(eq->op, std::string("=="));
+});
+
+// ── Comparison operators ──────────────────────────────────────
+TEST("comparison: < and > parsed correctly", [](){
+    auto out = parseSource("int f() { return a < b; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[0].get());
+    BinaryExprNode* cmp = dynamic_cast<BinaryExprNode*>(ret->value.get());
+    ASSERT_TRUE(cmp != nullptr);
+    ASSERT_EQ(cmp->op, std::string("<"));
+});
+
+int main() {
+    std::cout << "=== Parser Unit Tests ===\n\n";
+    return RUN_ALL_TESTS();
+}

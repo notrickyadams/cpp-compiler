@@ -87,6 +87,29 @@ std::string ExplanationBuilder::explain(DiagnosticKind kind,
                 "For example, '0x' starts a hex literal but requires at least one "
                 "hex digit [0-9a-fA-F] after it.";
 
+        case DiagnosticKind::PARSE_UnexpectedToken:
+            return
+                "The parser was reading a grammar rule that requires a specific "
+                "token at this position.\n"
+                "It found something different, which means either the preceding "
+                "tokens have an error (a missing semicolon, bracket, or operator), "
+                "or the syntax of this construct is incorrect.\n"
+                "Expected: " + detail;
+
+        case DiagnosticKind::PARSE_MissingToken:
+            return
+                "The parser reached the end of a grammar rule but the required "
+                "closing token '" + detail + "' was never found.\n"
+                "This often means an opening bracket, parenthesis, or keyword "
+                "was never matched with its closing counterpart.";
+
+        case DiagnosticKind::PARSE_UnbalancedBrace:
+            return
+                "Every '{' that opens a block must have a matching '}' to close it.\n"
+                "The parser reached the end of the file (or another top-level construct) "
+                "without finding the closing '}'.\n"
+                "Check for an extra '{' or a missing '}'.";
+
         case DiagnosticKind::SEM_TypeMismatch:
             return
                 "Every operator in C++ is only defined for specific combinations of "
@@ -142,6 +165,22 @@ ExplanationBuilder::fixes(DiagnosticKind kind,
             out.push_back({ "If the string spans lines intentionally, split it into adjacent literals" });
             break;
 
+        case DiagnosticKind::PARSE_UnexpectedToken:
+            out.push_back({ "Check if a ';' or ')' is missing before this point" });
+            out.push_back({ "Verify the spelling of the keyword or operator" });
+            out.push_back({ "Expected: " + detail });
+            break;
+
+        case DiagnosticKind::PARSE_MissingToken:
+            out.push_back({ "Add the missing '" + detail + "' at the indicated location" });
+            out.push_back({ "Check if a matching open/close pair is unbalanced" });
+            break;
+
+        case DiagnosticKind::PARSE_UnbalancedBrace:
+            out.push_back({ "Add the missing '}' to close the block" });
+            out.push_back({ "Check if you have an extra '{' that should be removed" });
+            break;
+
         case DiagnosticKind::SEM_TypeMismatch:
             out.push_back({ "Ensure both operands have the same type" });
             out.push_back({ "Use an explicit cast: static_cast<int>(expr)" });
@@ -188,6 +227,19 @@ ExplanationBuilder::trace(DiagnosticKind kind) {
             t.push_back({ "Lexer", "Lexer::skipWhitespaceAndComments()",     "found '/*' sequence",   true });
             t.push_back({ "Lexer", "Lexer::skipWhitespaceAndComments()",     "reached EOF before '*/'", false });
             t.push_back({ "Lexer", "DiagnosticEngine::unterminatedComment()", "diagnostic created",   false });
+            break;
+
+        case DiagnosticKind::PARSE_UnexpectedToken:
+            t.push_back({ "Parser", "Parser::parse()",          "scanning top-level construct",       true });
+            t.push_back({ "Parser", "Parser::parseStatement()", "dispatching on current token",       true });
+            t.push_back({ "Parser", "Parser::expect()",         "required token not found",           false });
+            t.push_back({ "Parser", "DiagnosticEngine::unexpectedToken()", "diagnostic created",      false });
+            break;
+
+        case DiagnosticKind::PARSE_MissingToken:
+            t.push_back({ "Parser", "Parser::parse()",          "scanning construct",                 true });
+            t.push_back({ "Parser", "Parser::expect()",         "end of input or wrong token",        false });
+            t.push_back({ "Parser", "DiagnosticEngine::missingToken()", "diagnostic created",         false });
             break;
 
         case DiagnosticKind::SEM_TypeMismatch:
