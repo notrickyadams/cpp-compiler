@@ -3,7 +3,7 @@
 #include <cassert>
 
 // ============================================================
-//  Result<T> — a value that is either Ok(T) or Err(E).
+//  Result<T, E> — a value that is either Ok(T) or Err(E).
 //
 //  Motivation:
 //    Raw exceptions make it impossible to know at the call site
@@ -16,8 +16,9 @@
 //    C++23: std::expected<T, E>
 //    We implement a C++14-compatible subset.
 //
-//  Constraint: T must be default-constructible (C++14 limitation;
-//  in C++17 we'd use std::optional or std::variant to avoid this).
+//  Note: StageOutput<T> (pipeline stage results) is defined in
+//  diagnostics/Diagnostic.hpp because it depends on Diagnostic.
+//  Keep this file free of that dependency.
 // ============================================================
 
 template<typename T, typename E>
@@ -54,26 +55,4 @@ private:
     bool ok_ = true;
     T    value_{};
     E    error_{};
-};
-
-// ============================================================
-//  StageOutput<T> — what a compiler stage always returns:
-//    output       — the stage's product (tokens, AST nodes, etc.)
-//    diagnostics  — zero or more errors/warnings collected
-//
-//  Key property: output is ALWAYS present, even when there are
-//  errors. This lets the pipeline continue and collect more
-//  diagnostics instead of stopping at the first one.
-//  (Matches GCC -fmax-errors / Clang -ferror-limit behaviour.)
-// ============================================================
-
-// Forward declaration — Diagnostic is defined in diagnostics/
-struct Diagnostic;
-
-template<typename T>
-struct StageOutput {
-    T                       output;
-    std::vector<Diagnostic> diagnostics;
-
-    bool hasErrors() const;   // defined after Diagnostic is complete
 };

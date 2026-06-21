@@ -70,7 +70,6 @@ private:
 
     // ── Token management ─────────────────────────────────
     const Token& current() const;
-    const Token& peekAt(int offset) const;
     Token        advance();
     bool         check(TokenType t) const;
     bool         match(TokenType t);

@@ -1,5 +1,4 @@
 #include "Parser.hpp"
-#include <stdexcept>
 
 Parser::Parser(std::vector<Token> tokens)
     : tokens_(std::move(tokens))
@@ -331,12 +330,6 @@ const Token& Parser::current() const {
     return tokens_.back();  // always EOF
 }
 
-const Token& Parser::peekAt(int offset) const {
-    std::size_t idx = pos_ + (std::size_t)offset;
-    if (idx < tokens_.size()) return tokens_[idx];
-    return tokens_.back();
-}
-
 Token Parser::advance() {
     Token t = current();
     if (!isAtEnd()) ++pos_;
@@ -359,16 +352,11 @@ bool Parser::match(TokenType t) {
 Token Parser::expect(TokenType t, const std::string& what) {
     if (check(t)) return advance();
 
-    // Build diagnostic pointing at the current (unexpected) token
     SourceSpan span = current().span();
-    std::string found = current().lexeme.empty()
-        ? tokenTypeName(current().type)
-        : "'" + current().lexeme + "'";
-
     diagnostics_.push_back(
         engine_.unexpectedToken(current().lexeme, what, span));
 
-    // Return a synthetic token so callers don't crash on nullptr
+    // Synthetic token so callers don't crash — parsing continues
     Token fake;
     fake.type   = t;
     fake.lexeme = "";

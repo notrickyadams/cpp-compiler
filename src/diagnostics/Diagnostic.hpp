@@ -88,9 +88,10 @@ struct Diagnostic {
 };
 
 // ============================================================
-//  StageOutput<T> — complete definition (forward-declared in Result.hpp)
-//
-//  Defined here because it depends on Diagnostic.
+//  StageOutput<T> — what every compiler stage returns:
+//    output      — the stage product (always present, even on error)
+//    diagnostics — zero or more collected errors/warnings
+//  Defined here (not in Result.hpp) because it depends on Diagnostic.
 // ============================================================
 template<typename T>
 struct StageOutput {

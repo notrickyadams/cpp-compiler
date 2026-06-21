@@ -10,7 +10,7 @@ Lexer::Lexer(std::string source)
 
 // ────────────────────────────────────────────────────────────
 //  tokenize() — public entry point
-// ──────────────────────────────────────────────────────────���─
+// ────────────────────────────────────────────────────────────
 StageOutput<std::vector<Token>> Lexer::tokenize() {
     pendingDiagnostics_.clear();
     std::vector<Token> tokens;
@@ -21,9 +21,11 @@ StageOutput<std::vector<Token>> Lexer::tokenize() {
         if (tok.type == TokenType::END_OF_FILE) break;
     }
 
-    lastOutput_.output      = std::move(tokens);
-    lastOutput_.diagnostics = std::move(pendingDiagnostics_);
-    return lastOutput_;
+    StageOutput<std::vector<Token>> out;
+    out.output      = std::move(tokens);
+    out.diagnostics = std::move(pendingDiagnostics_);
+    lastOutput_     = out;   // shallow copy for hasErrors()/errors() helpers
+    return out;              // NRVO: returned directly, no extra copy
 }
 
 // ────────────────────────────────────────────────────────────
