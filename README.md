@@ -10,11 +10,11 @@ Every error includes: where it happened, why it's a problem, how to fix it, and 
 
 | Stage | Status | What it does |
 |---|---|---|
-| Lexer | ✅ Done | Raw source text → typed token stream |
-| Diagnostic System | ✅ Done | Structured errors with WHY / FIX / TRACE — built in from day one |
-| Parser + AST | ✅ Done | Tokens → Abstract Syntax Tree with full operator precedence |
-| Semantic Analysis | ✅ Done | Type checking, scope resolution, symbol table |
-| IR Generation | 🔨 Next | AST → flat 3-address intermediate representation |
+| Lexer |  Done | Raw source text → typed token stream |
+| Diagnostic System |  Done | Structured errors with WHY / FIX / TRACE — built in from day one |
+| Parser + AST |  Done | Tokens → Abstract Syntax Tree with full operator precedence |
+| Semantic Analysis |  Done | Type checking, scope resolution, symbol table |
+| IR Generation |  Next | AST → flat 3-address intermediate representation |
 | Optimization | — | Constant folding, dead code elimination |
 | Assembly Generation | — | IR → real x86 assembly |
 | Executable | — | Assembled and linked binary |
@@ -158,9 +158,9 @@ feat: Stage 1 — fully working lexer with 18/18 tests
 
 | Decision | Why |
 |---|---|
-| Diagnostics as first-class architecture | Every stage produces structured errors, not strings — enables the visualizer, JSON export, and IDE integration |
+| Diagnostics as first-class architecture | Every stage produces structured errors, not strings, enables the visualizer, JSON export, and IDE integration |
 | Visitor pattern for AST | Adding a new operation (type checker, IR generator) = one new class, zero changes to AST nodes |
 | Recursive descent parser | Hand-written, readable, matches what GCC and Clang use |
-| `StageOutput<T>` return type | Every stage returns output + diagnostics together — pipeline never stops at first error |
+| `StageOutput<T>` return type | Every stage returns output + diagnostics together, pipeline never stops at first error |
 | Scope stack for symbol table | O(1) scope entry/exit, correct shadowing, matches GCC's design |
 | `Unknown` error-recovery type | Prevents cascading errors when a variable is undeclared |
