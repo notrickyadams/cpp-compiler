@@ -15,8 +15,8 @@ Every error includes: where it happened, why it's a problem, how to fix it, and 
 | Parser + AST | Done | Tokens → Abstract Syntax Tree with full operator precedence |
 | Semantic Analysis | Done | Type checking, scope resolution, symbol table |
 | IR Generation | Done | AST → flat three-address intermediate representation |
-| Optimization | Next | Constant folding, dead code elimination, copy propagation |
-| Assembly Generation | — | IR → real x86 assembly |
+| Optimization | Done | Constant folding, copy propagation, dead code elimination — run to a fixed point |
+| Assembly Generation | Next | IR → real x86 assembly |
 | Executable | — | Assembled and linked binary |
 | Visualizer | — | Interactive web UI: source → tokens → AST → IR → assembly |
 
@@ -88,7 +88,11 @@ g++ -std=c++14 -Wall -Wextra -Isrc \
     src/ast/ASTPrinter.cpp \
     src/parser/Parser.cpp \
     src/semantic/SemanticAnalyzer.cpp \
-    src/ir/IRGenerator.cpp
+    src/ir/IRGenerator.cpp \
+    src/optimizer/ConstantFoldingPass.cpp \
+    src/optimizer/CopyPropagationPass.cpp \
+    src/optimizer/DeadCodeEliminationPass.cpp \
+    src/optimizer/Optimizer.cpp
 
 ./build/compiler
 ```
@@ -103,8 +107,9 @@ test_diagnostics 15/15 tests   (53  assertions)
 test_parser      21/21 tests   (88  assertions)
 test_semantic    22/22 tests   (45  assertions)
 test_ir          15/15 tests   (49  assertions)
+test_optimizer   15/15 tests   (31  assertions)
 ─────────────────────────────────────────────
-Total            98/98 tests   (314 assertions)   0 failures
+Total           113/113 tests  (345 assertions)   0 failures
 ```
 
 ---
@@ -146,6 +151,13 @@ src/
     IRInstruction.hpp    one flat instruction: dest = src1 OP src2
     IRFunction.hpp       instruction list per function + IRProgram
     IRGenerator          ASTVisitor: lowers annotated AST to IR
+
+  optimizer/
+    OptimizationPass.hpp     Strategy interface: run(fn) -> changed
+    ConstantFoldingPass      CONST op CONST -> CONST
+    CopyPropagationPass      temp with known value -> substitute at use
+    DeadCodeEliminationPass  remove instructions defining unused temps
+    Optimizer                runs all passes to a fixed point
 ```
 
 ---
@@ -153,6 +165,7 @@ src/
 ## Commit history
 
 ```
+feat: Stage 5 — constant folding, copy propagation, DCE
 feat: Stage 4 — three-address code IR generation
 fix:  audit and clean up all three stages before IR
 feat: Stage 3 — semantic analysis with type resolution
@@ -175,3 +188,19 @@ feat: Stage 1 — fully working lexer with 18/18 tests
 | `Unknown` error-recovery type | Prevents cascading errors when a variable is undeclared |
 | IR creates a temp only for operators | Constants/variables used directly as operands — keeps IR minimal so the optimizer's before/after story is honest |
 | No diagnostics in IR generation | This stage trusts semantic analysis already validated the program — internal invariant violations use `assert()`, not `Diagnostic` |
+| Optimizer passes run to a fixed point, not once | `(2+3)*4` needs 3 iterations — folding the inner expr creates a NEW foldable expr that didn't exist before. Verified by test and hand-traced in commit history |
+| Copy propagation never touches named variables | A temp has one static definition by construction (safe to inline); a variable could be reassigned by a future language feature (unsafe without liveness analysis) |
+
+---
+
+## Before / after optimization
+
+```cpp
+int main() { return (2 + 3) * 4; }
+```
+
+| Before | After | Iterations |
+|---|---|---|
+| `t0 = 2 + 3`<br>`t1 = t0 * 4`<br>`return t1` | `return 20` | 3 |
+
+The middle iteration is the interesting one: folding `2+3` into `5` doesn't immediately make `t1 = t0 * 4` foldable — copy propagation has to substitute `t0 → 5` first, which *creates a new* `5 * 4` opportunity that constant folding then catches on the next round. A single linear pass would have stopped at `t1 = 5 * 4` and missed it.
