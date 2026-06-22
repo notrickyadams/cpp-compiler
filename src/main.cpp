@@ -4,6 +4,7 @@
 #include "parser/Parser.hpp"
 #include "ast/ASTPrinter.hpp"
 #include "semantic/SemanticAnalyzer.hpp"
+#include "ir/IRGenerator.hpp"
 #include "diagnostics/DiagnosticCollector.hpp"
 
 static void compile(const std::string& src,
@@ -69,14 +70,21 @@ static void compile(const std::string& src,
         std::cout << "\n";
         if (showFullDiag) collector.render(std::cout, src);
         else              collector.renderCompact(std::cout);
-    } else {
-        std::cout << "\nCompilation OK — all " << (int)analyzer.log().size()
-                  << " semantic checks passed.\n";
+        return;
     }
+
+    std::cout << "\nCompilation OK — all " << (int)analyzer.log().size()
+              << " semantic checks passed.\n";
+
+    // ── Stage 4: IR Generation ───────────────────────────
+    IRGenerator irgen;
+    IRProgram ir = irgen.generate(*parseOut.output);
+
+    std::cout << "\nIR (three-address code):\n" << ir.toString();
 }
 
 int main() {
-    std::cout << "cpp-compiler  |  Stages 1-3: Lexer + Parser + Semantic\n";
+    std::cout << "cpp-compiler  |  Stages 1-4: Lexer + Parser + Semantic + IR\n";
 
     // ── Demo 1: target program — everything passes ───────
     compile(
@@ -85,6 +93,25 @@ int main() {
         "    return x + 2;\n"
         "}\n",
         "Target program — full pipeline"
+    );
+
+    // ── Demo: IR shows an optimization opportunity ───────
+    // 2 + 3 is NOT folded here — that is the optimizer's job
+    // in the next stage. This is intentional: IR generation
+    // is naive-but-correct; optimization is a separate concern.
+    compile(
+        "int main() {\n"
+        "    return 2 + 3;\n"
+        "}\n",
+        "IR demo: constant folding opportunity (not yet optimized)"
+    );
+
+    // ── Demo: nested expression precedence in IR ─────────
+    compile(
+        "int compute(int a, int b, int c) {\n"
+        "    return a + b * c;\n"
+        "}\n",
+        "IR demo: a + b * c lowers to two temps in the right order"
     );
 
     // ── Demo 2: undeclared variable ───────────────────────
