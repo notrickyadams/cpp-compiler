@@ -59,4 +59,17 @@ struct IRValue {
             default:                 return "?";
         }
     }
+
+    // Needed by the optimizer to detect whether a pass actually
+    // changed an operand (vs. substituting a value equal to itself).
+    bool operator==(const IRValue& o) const {
+        if (kind != o.kind) return false;
+        switch (kind) {
+            case IRValueKind::Temp:  return tempId == o.tempId;
+            case IRValueKind::Var:   return varName == o.varName;
+            case IRValueKind::Const: return constValue == o.constValue;
+            default:                 return false;
+        }
+    }
+    bool operator!=(const IRValue& o) const { return !(*this == o); }
 };

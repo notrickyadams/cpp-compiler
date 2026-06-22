@@ -5,6 +5,7 @@
 #include "ast/ASTPrinter.hpp"
 #include "semantic/SemanticAnalyzer.hpp"
 #include "ir/IRGenerator.hpp"
+#include "optimizer/Optimizer.hpp"
 #include "diagnostics/DiagnosticCollector.hpp"
 
 static void compile(const std::string& src,
@@ -80,11 +81,24 @@ static void compile(const std::string& src,
     IRGenerator irgen;
     IRProgram ir = irgen.generate(*parseOut.output);
 
-    std::cout << "\nIR (three-address code):\n" << ir.toString();
+    std::cout << "\nIR (before optimization):\n" << ir.toString();
+
+    // ── Stage 5: Optimization ─────────────────────────────
+    Optimizer optimizer;
+    auto reports = optimizer.optimize(ir);   // mutates ir in place
+
+    std::cout << "\nIR (after optimization):\n" << ir.toString();
+
+    for (auto& r : reports) {
+        std::cout << "\nOptimization report [" << r.functionName << "]: "
+                   << r.instructionsBefore << " -> " << r.instructionsAfter
+                   << " instructions, " << r.iterations << " fixed-point iteration(s)\n";
+        for (auto& step : r.passesApplied) std::cout << "  " << step << "\n";
+    }
 }
 
 int main() {
-    std::cout << "cpp-compiler  |  Stages 1-4: Lexer + Parser + Semantic + IR\n";
+    std::cout << "cpp-compiler  |  Stages 1-5: Lexer + Parser + Semantic + IR + Optimizer\n";
 
     // ── Demo 1: target program — everything passes ───────
     compile(
@@ -95,15 +109,23 @@ int main() {
         "Target program — full pipeline"
     );
 
-    // ── Demo: IR shows an optimization opportunity ───────
-    // 2 + 3 is NOT folded here — that is the optimizer's job
-    // in the next stage. This is intentional: IR generation
-    // is naive-but-correct; optimization is a separate concern.
+    // ── Demo: simple constant folding ────────────────────
     compile(
         "int main() {\n"
         "    return 2 + 3;\n"
         "}\n",
-        "IR demo: constant folding opportunity (not yet optimized)"
+        "Optimizer demo: 2 + 3 folds to a single return"
+    );
+
+    // ── Demo: the fixed-point case — folding cascades ────
+    // t0=2+3 folds first; THEN t1=t0*4 becomes foldable only
+    // after copy propagation substitutes t0 -> 5. Needs 3
+    // iterations to fully collapse to "return 20".
+    compile(
+        "int main() {\n"
+        "    return (2 + 3) * 4;\n"
+        "}\n",
+        "Optimizer demo: (2+3)*4 needs multiple fixed-point iterations"
     );
 
     // ── Demo: nested expression precedence in IR ─────────
