@@ -10,12 +10,12 @@ Every error includes: where it happened, why it's a problem, how to fix it, and 
 
 | Stage | Status | What it does |
 |---|---|---|
-| Lexer |  Done | Raw source text → typed token stream |
-| Diagnostic System |  Done | Structured errors with WHY / FIX / TRACE — built in from day one |
-| Parser + AST |  Done | Tokens → Abstract Syntax Tree with full operator precedence |
-| Semantic Analysis |  Done | Type checking, scope resolution, symbol table |
-| IR Generation |  Next | AST → flat 3-address intermediate representation |
-| Optimization | — | Constant folding, dead code elimination |
+| Lexer | Done | Raw source text → typed token stream |
+| Diagnostic System | Done | Structured errors with WHY / FIX / TRACE — built in from day one |
+| Parser + AST | Done | Tokens → Abstract Syntax Tree with full operator precedence |
+| Semantic Analysis | Done | Type checking, scope resolution, symbol table |
+| IR Generation | Done | AST → flat three-address intermediate representation |
+| Optimization | Next | Constant folding, dead code elimination, copy propagation |
 | Assembly Generation | — | IR → real x86 assembly |
 | Executable | — | Assembled and linked binary |
 | Visualizer | — | Interactive web UI: source → tokens → AST → IR → assembly |
@@ -87,7 +87,8 @@ g++ -std=c++14 -Wall -Wextra -Isrc \
     src/lexer/Lexer.cpp \
     src/ast/ASTPrinter.cpp \
     src/parser/Parser.cpp \
-    src/semantic/SemanticAnalyzer.cpp
+    src/semantic/SemanticAnalyzer.cpp \
+    src/ir/IRGenerator.cpp
 
 ./build/compiler
 ```
@@ -101,8 +102,9 @@ test_lexer       25/25 tests   (79  assertions)
 test_diagnostics 15/15 tests   (53  assertions)
 test_parser      21/21 tests   (88  assertions)
 test_semantic    22/22 tests   (45  assertions)
+test_ir          15/15 tests   (49  assertions)
 ─────────────────────────────────────────────
-Total            83/83 tests   (265 assertions)   0 failures
+Total            98/98 tests   (314 assertions)   0 failures
 ```
 
 ---
@@ -138,6 +140,12 @@ src/
     Type.hpp             Type struct (int, bool, void, unknown)
     SymbolTable          scope-aware stack of hash maps
     SemanticAnalyzer     ASTVisitor: type resolution + symbol checks
+
+  ir/
+    IRValue.hpp          operand: Temp | Var | Const
+    IRInstruction.hpp    one flat instruction: dest = src1 OP src2
+    IRFunction.hpp       instruction list per function + IRProgram
+    IRGenerator          ASTVisitor: lowers annotated AST to IR
 ```
 
 ---
@@ -145,6 +153,7 @@ src/
 ## Commit history
 
 ```
+feat: Stage 4 — three-address code IR generation
 fix:  audit and clean up all three stages before IR
 feat: Stage 3 — semantic analysis with type resolution
 feat: Stage 2 — recursive descent parser + AST + Visitor
@@ -164,3 +173,5 @@ feat: Stage 1 — fully working lexer with 18/18 tests
 | `StageOutput<T>` return type | Every stage returns output + diagnostics together, pipeline never stops at first error |
 | Scope stack for symbol table | O(1) scope entry/exit, correct shadowing, matches GCC's design |
 | `Unknown` error-recovery type | Prevents cascading errors when a variable is undeclared |
+| IR creates a temp only for operators | Constants/variables used directly as operands — keeps IR minimal so the optimizer's before/after story is honest |
+| No diagnostics in IR generation | This stage trusts semantic analysis already validated the program — internal invariant violations use `assert()`, not `Diagnostic` |
