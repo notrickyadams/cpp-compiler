@@ -74,12 +74,16 @@ Diagnostic DiagnosticEngine::invalidNumberLiteral(const std::string& lit,
 Diagnostic DiagnosticEngine::unexpectedToken(const std::string& found,
                                               const std::string& expected,
                                               SourceSpan span) const {
+    // 'expected' is already a full descriptive phrase from the call site
+    // (e.g. "';' after variable declaration", "an expression"), not a bare
+    // token — so it is NOT re-wrapped in quotes here, only 'found' is.
+    std::string foundDesc = found.empty() ? "end of input" : ("'" + found + "'");
     return build(
         DiagnosticKind::PARSE_UnexpectedToken,
         Severity::Error,
         span,
-        "expected '" + expected + "', found '" + found + "'",
-        found
+        "expected " + expected + ", found " + foundDesc,
+        foundDesc
     );
 }
 

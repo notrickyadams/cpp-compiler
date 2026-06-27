@@ -21,7 +21,7 @@ StageOutput<std::unique_ptr<ProgramNode>> Parser::parse() {
             auto fn = parseFunctionDecl();
             if (fn) program->functions.push_back(std::move(fn));
         } else {
-            emitError("expected a type keyword to start a function declaration",
+            emitError("a type keyword to start a function declaration",
                       current().span());
             synchronize();
         }
@@ -122,7 +122,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
     if (check(TokenType::KW_RETURN))      return parseReturnStmt();
 
     // Unknown token at statement level — diagnose and recover
-    emitError("expected a statement (type name or 'return')",
+    emitError("a statement (type name or 'return')",
               current().span());
     synchronize();
     return nullptr;
@@ -294,7 +294,7 @@ std::unique_ptr<ASTNode> Parser::parsePrimary() {
     }
 
     // Nothing matched — diagnose
-    emitError("expected an expression (number, variable, or '(')",
+    emitError("an expression (number, variable, or '(')",
               current().span());
 
     // Return a dummy node so parsing can continue
@@ -313,7 +313,7 @@ std::string Parser::parseTypeName() {
         advance();
         return "int";
     }
-    emitError("expected a type name (e.g. 'int')", current().span());
+    emitError("a type name (e.g. 'int')", current().span());
     return "unknown";
 }
 

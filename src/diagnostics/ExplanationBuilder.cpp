@@ -19,7 +19,10 @@ std::string ExplanationBuilder::rootCause(DiagnosticKind kind,
             return "numeric literal '" + detail + "' has invalid syntax";
 
         case DiagnosticKind::PARSE_UnexpectedToken:
-            return "found '" + detail + "' where a different token was expected";
+            // 'detail' here is the pre-formatted FOUND token description
+            // (e.g. "'-'" or "end of input") — not the expected one, which
+            // is already part of the top-level Diagnostic::message.
+            return "found " + detail + " where a different token was expected";
 
         case DiagnosticKind::PARSE_MissingToken:
             return "expected '" + detail + "' but reached end of input or wrong token";
@@ -91,10 +94,9 @@ std::string ExplanationBuilder::explain(DiagnosticKind kind,
             return
                 "The parser was reading a grammar rule that requires a specific "
                 "token at this position.\n"
-                "It found something different, which means either the preceding "
+                "Instead it found " + detail + ", which means either the preceding "
                 "tokens have an error (a missing semicolon, bracket, or operator), "
-                "or the syntax of this construct is incorrect.\n"
-                "Expected: " + detail;
+                "or the syntax of this construct is incorrect.";
 
         case DiagnosticKind::PARSE_MissingToken:
             return
@@ -168,7 +170,7 @@ ExplanationBuilder::fixes(DiagnosticKind kind,
         case DiagnosticKind::PARSE_UnexpectedToken:
             out.push_back({ "Check if a ';' or ')' is missing before this point" });
             out.push_back({ "Verify the spelling of the keyword or operator" });
-            out.push_back({ "Expected: " + detail });
+            out.push_back({ "Found " + detail + " — check what precedes it for the real cause" });
             break;
 
         case DiagnosticKind::PARSE_MissingToken:
