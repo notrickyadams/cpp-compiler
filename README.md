@@ -16,8 +16,8 @@ Every error includes: where it happened, why it's a problem, how to fix it, and 
 | Semantic Analysis | Done | Type checking, scope resolution, symbol table |
 | IR Generation | Done | AST → flat three-address intermediate representation |
 | Optimization | Done | Constant folding, copy propagation, dead code elimination — run to a fixed point |
-| Assembly Generation | Next | IR → real x86 assembly |
-| Executable | — | Assembled and linked binary |
+| Assembly Generation | Done | IR → real 32-bit x86 AT&T assembly; tests assemble/link/run the output and check process exit codes |
+| Executable | Next | Wire the system assembler/linker into the compiler's own CLI |
 | Visualizer | — | Interactive web UI: source → tokens → AST → IR → assembly |
 
 ---
@@ -74,11 +74,19 @@ int main() {
 
 ## Build
 
-**Requires:** g++ with C++14 support (GCC 6+)
+**Requires:** g++ with C++14 support (GCC 6+). The codegen stage additionally
+assumes a 32-bit x86 MinGW target — see [Design decisions](#design-decisions).
 
 ```bash
-# All source files
-g++ -std=c++14 -Wall -Wextra -Isrc \
+mingw32-make all         # builds build/compiler + every test binary
+mingw32-make run-tests   # runs all seven test suites
+./build/compiler
+```
+
+Or, to see exactly what's compiled, the equivalent raw command:
+
+```bash
+g++ -std=c++14 -Wall -Wextra -Wpedantic -Isrc \
     -o build/compiler \
     src/main.cpp \
     src/diagnostics/ExplanationBuilder.cpp \
@@ -92,7 +100,8 @@ g++ -std=c++14 -Wall -Wextra -Isrc \
     src/optimizer/ConstantFoldingPass.cpp \
     src/optimizer/CopyPropagationPass.cpp \
     src/optimizer/DeadCodeEliminationPass.cpp \
-    src/optimizer/Optimizer.cpp
+    src/optimizer/Optimizer.cpp \
+    src/codegen/AssemblyGenerator.cpp
 
 ./build/compiler
 ```
@@ -108,9 +117,15 @@ test_parser      21/21 tests   (88  assertions)
 test_semantic    22/22 tests   (45  assertions)
 test_ir          15/15 tests   (49  assertions)
 test_optimizer   15/15 tests   (31  assertions)
+test_codegen     17/17 tests   (32  assertions)
 ─────────────────────────────────────────────
-Total           113/113 tests  (345 assertions)   0 failures
+Total           130/130 tests  (377 assertions)   0 failures
 ```
+
+`test_codegen` is the only suite that shells out to the real toolchain: several
+tests assemble and link the generated `.s` text with `g++`, run the resulting
+`.exe`, and assert on its process exit code — proving the generator emits not
+just well-formed text but actually correct, runnable machine code.
 
 ---
 
@@ -158,6 +173,12 @@ src/
     CopyPropagationPass      temp with known value -> substitute at use
     DeadCodeEliminationPass  remove instructions defining unused temps
     Optimizer                runs all passes to a fixed point
+
+  codegen/
+    StackFrameLayout.hpp     assigns every Var/Temp a stack slot; resolves
+                             params to caller-set cdecl offsets
+    AssemblyProgram.hpp      flat vector<string> of emitted assembly lines
+    AssemblyGenerator        lowers IR to 32-bit x86 AT&T assembly text
 ```
 
 ---
@@ -165,6 +186,7 @@ src/
 ## Commit history
 
 ```
+feat: Stage 6 — x86 assembly generation, stack frame layout
 feat: Stage 5 — constant folding, copy propagation, DCE
 feat: Stage 4 — three-address code IR generation
 fix:  audit and clean up all three stages before IR
@@ -190,6 +212,10 @@ feat: Stage 1 — fully working lexer with 18/18 tests
 | No diagnostics in IR generation | This stage trusts semantic analysis already validated the program — internal invariant violations use `assert()`, not `Diagnostic` |
 | Optimizer passes run to a fixed point, not once | `(2+3)*4` needs 3 iterations — folding the inner expr creates a NEW foldable expr that didn't exist before. Verified by test and hand-traced in commit history |
 | Copy propagation never touches named variables | A temp has one static definition by construction (safe to inline); a variable could be reassigned by a future language feature (unsafe without liveness analysis) |
+| No structured `AssemblyInstruction` type | Nothing downstream transforms assembly text — an external assembler just consumes it. `vector<string>` is exactly as much structure as that job needs |
+| `_main` symbol + `call ___main` for the entry point only | Empirically discovered, not assumed: this legacy MinGW.org CRT's startup expects a symbol literally `_main`; without it, linking fails with `undefined reference to WinMain@16` because the CRT falls back to looking for a GUI entry point. Validated against real `gcc -S` output before writing the generator — see `build/probe*.c/.s` |
+| Every function gets a safety-net `leave`/`ret` even with no IR `Return` | The grammar allows a body that never returns (e.g. `int f() { int x = 5; }`), and nothing upstream rejects it — C treats this as UB, not a hard error. Real compilers still emit a valid epilogue rather than falling through into the next function's bytes; this generator does the same |
+| Comparison and call-expression codegen tested via direct IR construction | The front end has no implicit bool→int conversion and no call-expression grammar at all, so source text can't express either case end-to-end. Tests build the `IRFunction` by hand instead — the same pattern `test_optimizer.cpp` already uses for pass-level unit tests |
 
 ---
 
@@ -204,3 +230,41 @@ int main() { return (2 + 3) * 4; }
 | `t0 = 2 + 3`<br>`t1 = t0 * 4`<br>`return t1` | `return 20` | 3 |
 
 The middle iteration is the interesting one: folding `2+3` into `5` doesn't immediately make `t1 = t0 * 4` foldable — copy propagation has to substitute `t0 → 5` first, which *creates a new* `5 * 4` opportunity that constant folding then catches on the next round. A single linear pass would have stopped at `t1 = 5 * 4` and missed it.
+
+---
+
+## Generated assembly
+
+The target program, end to end — this is real output from `./build/compiler`,
+assembled, linked, and run with `g++` to confirm it actually works (exit code 7):
+
+```cpp
+int main() {
+    int x = 5;
+    return x + 2;
+}
+```
+
+```asm
+    .globl  _main
+_main:
+    pushl   %ebp
+    movl    %esp, %ebp
+    andl    $-16, %esp
+    subl    $8, %esp
+    call    ___main
+    # x = 5
+    movl    $5, -4(%ebp)
+    # t0 = x + 2
+    movl    -4(%ebp), %eax
+    addl    $2, %eax
+    movl    %eax, -8(%ebp)
+    # return t0
+    movl    -8(%ebp), %eax
+    leave
+    ret
+```
+
+`x` and `t0` each get one 4-byte stack slot (`-4(%ebp)`, `-8(%ebp)`) from
+`StackFrameLayout`. The `andl`/`call ___main` pair only appears on `main` — every
+other function gets a plain symbol and skips both (see Design decisions).
