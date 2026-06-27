@@ -6,6 +6,7 @@
 #include "semantic/SemanticAnalyzer.hpp"
 #include "ir/IRGenerator.hpp"
 #include "optimizer/Optimizer.hpp"
+#include "codegen/AssemblyGenerator.hpp"
 #include "diagnostics/DiagnosticCollector.hpp"
 
 static void compile(const std::string& src,
@@ -95,10 +96,16 @@ static void compile(const std::string& src,
                    << " instructions, " << r.iterations << " fixed-point iteration(s)\n";
         for (auto& step : r.passesApplied) std::cout << "  " << step << "\n";
     }
+
+    // ── Stage 6: Assembly Generation ─────────────────────
+    AssemblyGenerator codegen;
+    AssemblyProgram asmProg = codegen.generate(ir);
+
+    std::cout << "\nAssembly (x86, AT&T syntax):\n" << asmProg.toString();
 }
 
 int main() {
-    std::cout << "cpp-compiler  |  Stages 1-5: Lexer + Parser + Semantic + IR + Optimizer\n";
+    std::cout << "cpp-compiler  |  Stages 1-6: Lexer + Parser + Semantic + IR + Optimizer + Codegen\n";
 
     // ── Demo 1: target program — everything passes ───────
     compile(
