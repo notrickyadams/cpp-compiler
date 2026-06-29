@@ -121,6 +121,10 @@ void SemanticAnalyzer::visit(ReturnStmtNode& n) {
     if (!n.value) {
         // bare 'return;'
         if (!currentFunctionReturnType_.isVoid()) {
+            diagnostics_.push_back(
+                engine_.missingReturnValue(currentFunctionName_,
+                                            currentFunctionReturnType_.name(),
+                                            n.span));
             logFail("bare return in non-void function '" +
                     currentFunctionName_ + "'");
         } else {
@@ -173,6 +177,50 @@ void SemanticAnalyzer::visit(BinaryExprNode& n) {
 
     currentExprType_  = result;
     n.resolvedType    = result.name();
+}
+
+// ────────────────────────────────────────────────────────────
+//  AssignmentExpr — x = value
+//
+//  Checks:
+//    1. The target name must already be declared (assigning to
+//       an undeclared name is SEM_UndeclaredIdentifier, the same
+//       kind a bare undeclared read produces — the underlying
+//       problem is identical).
+//    2. The value's type must match the target's declared type.
+//
+//  The expression's own type (for further use, e.g. nested
+//  assignments or a future "used as a sub-expression" case) is
+//  the TARGET's type, mirroring real C++ (an assignment
+//  expression's type/value is that of its left-hand side after
+//  the write).
+// ────────────────────────────────────────────────────────────
+void SemanticAnalyzer::visit(AssignmentExprNode& n) {
+    const Symbol* sym = symbols_.lookup(n.name);
+
+    if (!sym) {
+        diagnostics_.push_back(engine_.undeclaredIdentifier(n.name, n.span));
+        logFail(n.name + " is not declared (cannot assign)");
+        resolveType(*n.value);  // still analyse the RHS for further errors
+        currentExprType_ = Type::Unknown();
+        n.resolvedType    = "unknown";
+        return;
+    }
+
+    Type targetType = sym->type;
+    Type valueType  = resolveType(*n.value);
+
+    if (!valueType.isUnknown() && valueType != targetType) {
+        diagnostics_.push_back(
+            engine_.typeMismatch(targetType.name(), valueType.name(), n.span));
+        logFail("assignment type mismatch: " + n.name + " is " + targetType.name() +
+                ", value is " + valueType.name());
+    } else if (!valueType.isUnknown()) {
+        logOk("assignment valid (" + targetType.name() + " <- " + valueType.name() + ")");
+    }
+
+    currentExprType_ = targetType;
+    n.resolvedType    = targetType.name();
 }
 
 // ────────────────────────────────────────────────────────────

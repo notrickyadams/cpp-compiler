@@ -29,17 +29,26 @@
 
 class ExplanationBuilder {
 public:
+    // detail2 exists for the rare kind that needs TWO pieces of
+    // runtime context at once (e.g. PARSE_MalformedExpression needs
+    // both the expression already parsed AND the stray value found
+    // after it) — defaulted so every existing single-detail call
+    // site is unaffected.
+
     // ── Root cause (single sentence) ─────────────────────
     static std::string rootCause(DiagnosticKind kind,
-                                  const std::string& detail = "");
+                                  const std::string& detail = "",
+                                  const std::string& detail2 = "");
 
     // ── Explanation (multi-sentence WHY) ─────────────────
     static std::string explain(DiagnosticKind kind,
-                                const std::string& detail = "");
+                                const std::string& detail = "",
+                                const std::string& detail2 = "");
 
     // ── Fix suggestions ───────────────────────────────────
     static std::vector<FixSuggestion> fixes(DiagnosticKind kind,
-                                             const std::string& detail = "");
+                                             const std::string& detail = "",
+                                             const std::string& detail2 = "");
 
     // ── Compiler internal trace ───────────────────────────
     static std::vector<TraceStep> trace(DiagnosticKind kind);

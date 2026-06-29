@@ -4,7 +4,8 @@
 //  rootCause — one sentence, no period, suitable for a subtitle
 // ─────────────────────────────────────────────────────────────
 std::string ExplanationBuilder::rootCause(DiagnosticKind kind,
-                                           const std::string& detail) {
+                                           const std::string& detail,
+                                           const std::string& detail2) {
     switch (kind) {
         case DiagnosticKind::LEX_UnexpectedCharacter:
             return "'" + detail + "' is not the start of any valid token";
@@ -30,6 +31,19 @@ std::string ExplanationBuilder::rootCause(DiagnosticKind kind,
         case DiagnosticKind::PARSE_UnbalancedBrace:
             return "opening '{' has no matching closing '}'";
 
+        case DiagnosticKind::PARSE_InvalidAssignmentTarget:
+            // 'detail' here is the nodeType() of whatever was parsed on
+            // the left of '=' (e.g. "BinaryExpr", "IntLiteral") — not a
+            // token, since this is only detected after a full
+            // sub-expression has already been parsed.
+            return "the left side of '=' (" + detail + ") is not something that can be assigned to";
+
+        case DiagnosticKind::PARSE_MalformedExpression:
+            // Stays generic — the specific values ('detail'/'detail2')
+            // are spelled out in explain()'s narrative instead, so this
+            // one-line summary reads naturally on its own.
+            return "two expressions appeared consecutively with no operator between them";
+
         case DiagnosticKind::SEM_UndeclaredIdentifier:
             return "'" + detail + "' is used before it is declared";
 
@@ -40,7 +54,9 @@ std::string ExplanationBuilder::rootCause(DiagnosticKind kind,
             return "'" + detail + "' is declared more than once in the same scope";
 
         case DiagnosticKind::SEM_ReturnTypeMismatch:
-            return "returned value type does not match the declared function return type";
+            // detail = function name, detail2 = its declared return type.
+            return "'" + detail + "' is declared to return '" + detail2 +
+                   "' but this return statement provides no value";
 
         case DiagnosticKind::SEM_VoidReturn:
             return "void function cannot return a value";
@@ -54,7 +70,8 @@ std::string ExplanationBuilder::rootCause(DiagnosticKind kind,
 //  explain — 2-4 sentences explaining WHY this is a problem
 // ─────────────────────────────────────────────────────────────
 std::string ExplanationBuilder::explain(DiagnosticKind kind,
-                                         const std::string& detail) {
+                                         const std::string& detail,
+                                         const std::string& detail2) {
     switch (kind) {
         case DiagnosticKind::LEX_UnexpectedCharacter:
             return
@@ -112,6 +129,27 @@ std::string ExplanationBuilder::explain(DiagnosticKind kind,
                 "without finding the closing '}'.\n"
                 "Check for an extra '{' or a missing '}'.";
 
+        case DiagnosticKind::PARSE_InvalidAssignmentTarget:
+            return
+                "Assignment ('=') requires a variable name on its left side — that "
+                "variable's storage is what receives the new value.\n"
+                "The left side here was a " + detail + ", which is a computed value "
+                "with no storage location of its own, so there is nothing for '=' "
+                "to write into.";
+
+        case DiagnosticKind::PARSE_MalformedExpression:
+            return
+                "The parser successfully read:\n"
+                "\n"
+                "return " + detail + "\n"
+                "\n"
+                "After completing the return expression,\n"
+                "it encountered another value:\n"
+                "\n"
+                + detail2 + "\n"
+                "\n"
+                "C++ requires an operator between values.";
+
         case DiagnosticKind::SEM_TypeMismatch:
             return
                 "Every operator in C++ is only defined for specific combinations of "
@@ -136,6 +174,16 @@ std::string ExplanationBuilder::explain(DiagnosticKind kind,
                 "If you intended to assign a new value, use assignment (=) "
                 "without the type keyword.";
 
+        case DiagnosticKind::SEM_ReturnTypeMismatch:
+            return
+                "Every non-void function must produce a value of its declared "
+                "type on every path through the function.\n"
+                "'" + detail + "' is declared to return '" + detail2 + "', but this "
+                "'return;' provides no value at all.\n"
+                "At the machine level this means no value is ever placed in the "
+                "return register, so the caller would read whatever happened to "
+                "already be there — not a value your program computed.";
+
         default:
             return "An error occurred in the " +
                    diagnosticStage(kind) + " stage.";
@@ -147,7 +195,8 @@ std::string ExplanationBuilder::explain(DiagnosticKind kind,
 // ─────────────────────────────────────────────────────────────
 std::vector<FixSuggestion>
 ExplanationBuilder::fixes(DiagnosticKind kind,
-                           const std::string& detail) {
+                           const std::string& detail,
+                           const std::string& detail2) {
     std::vector<FixSuggestion> out;
 
     switch (kind) {
@@ -183,6 +232,16 @@ ExplanationBuilder::fixes(DiagnosticKind kind,
             out.push_back({ "Check if you have an extra '{' that should be removed" });
             break;
 
+        case DiagnosticKind::PARSE_InvalidAssignmentTarget:
+            out.push_back({ "Assign into a plain variable name instead, e.g. x = ..." });
+            out.push_back({ "If you meant to compare two values, use '==' instead of '='" });
+            break;
+
+        case DiagnosticKind::PARSE_MalformedExpression:
+            out.push_back({ "Insert an operator between " + detail + " and " + detail2 });
+            out.push_back({ "or remove the extra value" });
+            break;
+
         case DiagnosticKind::SEM_TypeMismatch:
             out.push_back({ "Ensure both operands have the same type" });
             out.push_back({ "Use an explicit cast: static_cast<int>(expr)" });
@@ -198,6 +257,11 @@ ExplanationBuilder::fixes(DiagnosticKind kind,
         case DiagnosticKind::SEM_RedeclaredVariable:
             out.push_back({ "Remove the type keyword to assign instead of re-declare" });
             out.push_back({ "Rename one of the declarations to avoid the conflict" });
+            break;
+
+        case DiagnosticKind::SEM_ReturnTypeMismatch:
+            out.push_back({ "Provide a value: return <" + detail2 + " expression>;" });
+            out.push_back({ "Change '" + detail + "'s return type to 'void' if no value should be returned" });
             break;
 
         default:
@@ -244,6 +308,18 @@ ExplanationBuilder::trace(DiagnosticKind kind) {
             t.push_back({ "Parser", "DiagnosticEngine::missingToken()", "diagnostic created",         false });
             break;
 
+        case DiagnosticKind::PARSE_InvalidAssignmentTarget:
+            t.push_back({ "Parser", "Parser::parseAssignment()", "parsed left side, found '=' next",  true });
+            t.push_back({ "Parser", "Parser::parseAssignment()", "left side is not an Identifier",     false });
+            t.push_back({ "Parser", "DiagnosticEngine::invalidAssignmentTarget()", "diagnostic created", false });
+            break;
+
+        case DiagnosticKind::PARSE_MalformedExpression:
+            t.push_back({ "Parser", "Parser::parseReturnStmt()",   "parsed return expression",             true  });
+            t.push_back({ "Parser", "Parser::isExpressionStart()", "next token also starts an expression", false });
+            t.push_back({ "Parser", "DiagnosticEngine::malformedExpression()", "diagnostic created",       false });
+            break;
+
         case DiagnosticKind::SEM_TypeMismatch:
             t.push_back({ "SemanticAnalysis", "SemanticAnalyzer::visitBinaryExpr()", "evaluating operand types",   true });
             t.push_back({ "SemanticAnalysis", "TypeResolver::resolve()",             "resolved left and right types", true });
@@ -255,6 +331,12 @@ ExplanationBuilder::trace(DiagnosticKind kind) {
             t.push_back({ "SemanticAnalysis", "SemanticAnalyzer::visitIdentifier()", "looking up name in scope",   true });
             t.push_back({ "SemanticAnalysis", "SymbolTable::lookup()",               "name not found in any scope", false });
             t.push_back({ "SemanticAnalysis", "DiagnosticEngine::undeclaredIdent()", "diagnostic created",         false });
+            break;
+
+        case DiagnosticKind::SEM_ReturnTypeMismatch:
+            t.push_back({ "SemanticAnalysis", "SemanticAnalyzer::visit(ReturnStmtNode&)", "return statement has no value",  true  });
+            t.push_back({ "SemanticAnalysis", "Type::isVoid()",                          "declared return type is not void", false });
+            t.push_back({ "SemanticAnalysis", "DiagnosticEngine::missingReturnValue()",  "diagnostic created",               false });
             break;
 
         default:

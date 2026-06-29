@@ -8,15 +8,16 @@ Diagnostic DiagnosticEngine::build(DiagnosticKind kind,
                                     Severity severity,
                                     SourceSpan span,
                                     const std::string& message,
-                                    const std::string& detail) const {
+                                    const std::string& detail,
+                                    const std::string& detail2) const {
     Diagnostic d;
     d.kind        = kind;
     d.severity    = severity;
     d.span        = span;
     d.message     = message;
-    d.rootCause   = ExplanationBuilder::rootCause(kind, detail);
-    d.explanation = ExplanationBuilder::explain(kind, detail);
-    d.fixes       = ExplanationBuilder::fixes(kind, detail);
+    d.rootCause   = ExplanationBuilder::rootCause(kind, detail, detail2);
+    d.explanation = ExplanationBuilder::explain(kind, detail, detail2);
+    d.fixes       = ExplanationBuilder::fixes(kind, detail, detail2);
     d.trace       = ExplanationBuilder::trace(kind);
     return d;
 }
@@ -98,6 +99,35 @@ Diagnostic DiagnosticEngine::missingToken(const std::string& expected,
     );
 }
 
+Diagnostic DiagnosticEngine::invalidAssignmentTarget(const std::string& nodeType,
+                                                       SourceSpan span) const {
+    return build(
+        DiagnosticKind::PARSE_InvalidAssignmentTarget,
+        Severity::Error,
+        span,
+        "invalid assignment target (" + nodeType + ")",
+        nodeType
+    );
+}
+
+Diagnostic DiagnosticEngine::malformedExpression(const std::string& leftText,
+                                                   const std::string& strayText,
+                                                   SourceSpan span) const {
+    Diagnostic d = build(
+        DiagnosticKind::PARSE_MalformedExpression,
+        Severity::Error,
+        span,
+        "expected an operator or ';', found '" + strayText + "' after '" + leftText + "'",
+        leftText,
+        strayText
+    );
+    d.invalidExample = leftText + " " + strayText;
+    d.validExamples.push_back(leftText + " + " + strayText);
+    d.validExamples.push_back(leftText + " * " + strayText);
+    d.validExamples.push_back(leftText + " = " + strayText);
+    return d;
+}
+
 // ─────────────────────────────────────────────────────────────
 //  Semantic diagnostics (stubs — wired up fully in Stage 4)
 // ─────────────────────────────────────────────────────────────
@@ -133,5 +163,19 @@ Diagnostic DiagnosticEngine::redeclaredVariable(const std::string& name,
         span,
         "'" + name + "' is already declared in this scope",
         name
+    );
+}
+
+Diagnostic DiagnosticEngine::missingReturnValue(const std::string& functionName,
+                                                  const std::string& expectedType,
+                                                  SourceSpan span) const {
+    return build(
+        DiagnosticKind::SEM_ReturnTypeMismatch,
+        Severity::Error,
+        span,
+        "missing return value in function '" + functionName +
+            "' (expected '" + expectedType + "')",
+        functionName,
+        expectedType
     );
 }

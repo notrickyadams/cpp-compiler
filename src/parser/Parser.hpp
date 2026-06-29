@@ -20,7 +20,8 @@
 //    statement    → var_decl | return_stmt
 //    var_decl     → type IDENT ('=' expression)? ';'
 //    return_stmt  → 'return' expression? ';'
-//    expression   → equality
+//    expression   → assignment
+//    assignment   → IDENTIFIER '=' assignment | equality
 //    equality     → comparison (('=='|'!=') comparison)*
 //    comparison   → addition   (('<'|'>') addition)*
 //    addition     → multiply   (('+'|'-') multiply)*
@@ -58,6 +59,7 @@ private:
 
     // Expression precedence chain (low → high priority)
     std::unique_ptr<ASTNode> parseExpression();
+    std::unique_ptr<ASTNode> parseAssignment();
     std::unique_ptr<ASTNode> parseEquality();
     std::unique_ptr<ASTNode> parseComparison();
     std::unique_ptr<ASTNode> parseAddition();
@@ -67,6 +69,11 @@ private:
     // Type parsing (returns type name string)
     std::string parseTypeName();
     bool        isTypeName() const;
+
+    // True if a token of this type can begin a new expression
+    // (primary's first-set). Used to detect "return x 2;" — two
+    // expressions back-to-back with no operator between them.
+    bool isExpressionStart(TokenType t) const;
 
     // ── Token management ─────────────────────────────────
     const Token& current() const;

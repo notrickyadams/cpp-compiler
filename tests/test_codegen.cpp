@@ -187,6 +187,28 @@ TEST("end-to-end: target program int main(){int x=5; return x+2;} exits 7", []()
     ASSERT_EQ(assembleLinkRun(asmProg, "codegen_target"), 7);
 });
 
+TEST("end-to-end: bug report — return x = 3 (assignment expr through the full real pipeline) exits 3", [](){
+    auto asmProg = genAsmFromSource(
+        "int main() {\n"
+        "    int x = 5;\n"
+        "    return x = 3;\n"
+        "}\n"
+    );
+    ASSERT_EQ(assembleLinkRun(asmProg, "codegen_assign"), 3);
+});
+
+TEST("end-to-end: bug report — a = b = c chained assignment exits 7", [](){
+    auto asmProg = genAsmFromSource(
+        "int main() {\n"
+        "    int a = 0;\n"
+        "    int b = 0;\n"
+        "    int c = 7;\n"
+        "    return a = b = c;\n"
+        "}\n"
+    );
+    ASSERT_EQ(assembleLinkRun(asmProg, "codegen_chain_assign"), 7);
+});
+
 TEST("end-to-end: subtraction with constant operands", [](){
     IRFunction fn; fn.name = "main";
     fn.instructions.push_back(IRInstruction::makeBinary(

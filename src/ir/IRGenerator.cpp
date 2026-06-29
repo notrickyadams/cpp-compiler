@@ -93,6 +93,30 @@ void IRGenerator::visit(BinaryExprNode& n) {
 }
 
 // ────────────────────────────────────────────────────────────
+//  AssignmentExpr — x = value
+//
+//  x = 3;        ->  x = 3                (Copy, same shape as VarDeclNode)
+//  x = y + 1;    ->  t0 = y + 1
+//                    x = t0
+//  return x = 3; ->  x = 3
+//                    return x             (re-reads the Var, no new temp —
+//                                           see currentValue_ below)
+//
+//  currentValue_ is set to Var(name), NOT the right-hand value
+//  directly: the expression's value is "whatever x holds now",
+//  and x is already a valid, free operand — manufacturing a temp
+//  to hold a second copy of the same value would be redundant.
+//  This also makes chained assignment (a = b = c) fall out for
+//  free: the inner assignment's currentValue_ (Var b) becomes the
+//  outer assignment's right-hand operand directly.
+// ────────────────────────────────────────────────────────────
+void IRGenerator::visit(AssignmentExprNode& n) {
+    IRValue value = evalExpr(*n.value);
+    emit(IRInstruction::makeCopy(IRValue::makeVar(n.name), value));
+    currentValue_ = IRValue::makeVar(n.name);
+}
+
+// ────────────────────────────────────────────────────────────
 //  Identifier — a variable reference IS an operand; no instruction.
 // ────────────────────────────────────────────────────────────
 void IRGenerator::visit(IdentifierNode& n) {

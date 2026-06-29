@@ -60,6 +60,12 @@ void ASTJsonPrinter::visit(BinaryExprNode& n) {
                     ",\"right\":" + childJson(*n.right) + "}";
 }
 
+void ASTJsonPrinter::visit(AssignmentExprNode& n) {
+    currentJson_ = "{\"node\":\"AssignmentExpr\",\"name\":\"" + jsonEscape(n.name) +
+                   "\",\"resolvedType\":\"" + jsonEscape(n.resolvedType) +
+                   "\",\"value\":" + childJson(*n.value) + "}";
+}
+
 void ASTJsonPrinter::visit(IdentifierNode& n) {
     currentJson_ = "{\"node\":\"Identifier\",\"name\":\"" + jsonEscape(n.name) +
                    "\",\"resolvedType\":\"" + jsonEscape(n.resolvedType) + "\"}";

@@ -111,7 +111,7 @@ TEST("collector: renderCompact produces filename:line:col format", [](){
     ASSERT_TRUE(out.find("error")      != std::string::npos);
 });
 
-TEST("collector: render full output contains WHY section", [](){
+TEST("collector: render full output contains all named sections", [](){
     DiagnosticEngine engine;
     DiagnosticCollector collector;
     std::string src = "int @x;";
@@ -121,9 +121,15 @@ TEST("collector: render full output contains WHY section", [](){
     collector.render(oss, src);
     std::string out = oss.str();
 
-    ASSERT_TRUE(out.find("Why this happened") != std::string::npos);
-    ASSERT_TRUE(out.find("How to fix")        != std::string::npos);
-    ASSERT_TRUE(out.find("Internal trace")    != std::string::npos);
+    ASSERT_TRUE(out.find("ERROR TYPE:")    != std::string::npos);
+    ASSERT_TRUE(out.find("LOCATION:")      != std::string::npos);
+    ASSERT_TRUE(out.find("ROOT CAUSE:")    != std::string::npos);
+    ASSERT_TRUE(out.find("WHAT HAPPENED:") != std::string::npos);
+    ASSERT_TRUE(out.find("HOW TO FIX:")    != std::string::npos);
+    ASSERT_TRUE(out.find("TRACE:")         != std::string::npos);
+    // [ok]/[FAIL] brackets are gone — trace is now a plain arrow chain
+    ASSERT_TRUE(out.find("[ok")  == std::string::npos);
+    ASSERT_TRUE(out.find("[FAIL") == std::string::npos);
 });
 
 TEST("collector: render full output contains source underline", [](){
@@ -168,6 +174,56 @@ TEST("collector: JSON output contains UnexpectedCharacter kind", [](){
     std::ostringstream oss;
     collector.renderJson(oss, "");
     ASSERT_TRUE(oss.str().find("UnexpectedCharacter") != std::string::npos);
+});
+
+// ── PARSE_MalformedExpression ("return x 2;") ───────────────
+TEST("engine: malformedExpression fills invalidExample/validExamples", [](){
+    DiagnosticEngine engine;
+    SourceSpan span = SourceSpan::point(3, 15);
+    Diagnostic d = engine.malformedExpression("x", "2", span);
+
+    ASSERT_EQ(d.kind, DiagnosticKind::PARSE_MalformedExpression);
+    ASSERT_EQ(d.invalidExample, std::string("x 2"));
+    ASSERT_EQ((int)d.validExamples.size(), 3);
+    ASSERT_TRUE(!d.rootCause.empty());
+    ASSERT_TRUE(!d.explanation.empty());
+    ASSERT_TRUE(!d.fixes.empty());
+    ASSERT_TRUE(!d.trace.empty());
+});
+
+TEST("collector: render shows INVALID/VALID only when example is populated", [](){
+    DiagnosticEngine engine;
+
+    DiagnosticCollector withExample;
+    withExample.add(engine.malformedExpression("x", "2", SourceSpan::point(1, 9)));
+    std::ostringstream oss1;
+    withExample.render(oss1, "");
+    std::string out1 = oss1.str();
+    ASSERT_TRUE(out1.find("INVALID:") != std::string::npos);
+    ASSERT_TRUE(out1.find("VALID:")   != std::string::npos);
+    ASSERT_TRUE(out1.find("x 2")      != std::string::npos);
+    ASSERT_TRUE(out1.find("x + 2")    != std::string::npos);
+
+    DiagnosticCollector withoutExample;
+    withoutExample.add(engine.unexpectedChar('@', SourceSpan::point(1, 1)));
+    std::ostringstream oss2;
+    withoutExample.render(oss2, "");
+    std::string out2 = oss2.str();
+    ASSERT_TRUE(out2.find("INVALID:") == std::string::npos);
+    ASSERT_TRUE(out2.find("VALID:")   == std::string::npos);
+});
+
+TEST("collector: TRACE section is an arrow chain starting with the stage name", [](){
+    DiagnosticEngine engine;
+    DiagnosticCollector collector;
+    collector.add(engine.malformedExpression("x", "2", SourceSpan::point(1, 9)));
+
+    std::ostringstream oss;
+    collector.render(oss, "");
+    std::string out = oss.str();
+
+    ASSERT_TRUE(out.find("TRACE:\nParser\n") != std::string::npos);
+    ASSERT_TRUE(out.find("\xE2\x86\x92 Parser::parseReturnStmt()") != std::string::npos);
 });
 
 // ── SourceSpan helpers ───────────────────────────────────────

@@ -183,6 +183,37 @@ TEST("IR generation does NOT fold constants — that's the optimizer's job", [](
     ASSERT_EQ(instrs[0].toString(), std::string("t0 = 2 + 3"));
 });
 
+// ── Assignment expressions ──────────────────────────────────────
+
+TEST("assignment: return x = 3 lowers to 'x = 3' then 'return x' (bug report spec)", [](){
+    auto r = genIR("int main() { int x = 5; return x = 3; }");
+    auto& instrs = r.ir.functions[0].instructions;
+    ASSERT_EQ((int)instrs.size(), 3);
+    ASSERT_EQ(instrs[0].toString(), std::string("x = 5"));
+    ASSERT_EQ(instrs[1].toString(), std::string("x = 3"));
+    ASSERT_EQ(instrs[2].toString(), std::string("return x"));
+});
+
+TEST("assignment: x = y + 1 creates one temp for the RHS, then copies it into x", [](){
+    auto r = genIR("int f() { int x=0; int y=0; return x = y + 1; }");
+    auto& instrs = r.ir.functions[0].instructions;
+    // x=0; y=0; t0=y+1; x=t0; return x
+    ASSERT_EQ((int)instrs.size(), 5);
+    ASSERT_EQ(instrs[2].toString(), std::string("t0 = y + 1"));
+    ASSERT_EQ(instrs[3].toString(), std::string("x = t0"));
+    ASSERT_EQ(instrs[4].toString(), std::string("return x"));
+});
+
+TEST("assignment: a = b = c chains without creating any temp", [](){
+    auto r = genIR("int f() { int a=0; int b=0; int c=0; return a = b = c; }");
+    auto& instrs = r.ir.functions[0].instructions;
+    // a=0; b=0; c=0; b=c; a=b; return a  -- no temps needed at all
+    ASSERT_EQ((int)instrs.size(), 6);
+    ASSERT_EQ(instrs[3].toString(), std::string("b = c"));
+    ASSERT_EQ(instrs[4].toString(), std::string("a = b"));
+    ASSERT_EQ(instrs[5].toString(), std::string("return a"));
+});
+
 int main() {
     std::cout << "=== IR Generation Unit Tests ===\n\n";
     return RUN_ALL_TESTS();

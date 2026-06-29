@@ -81,6 +81,15 @@ struct Diagnostic {
     std::vector<FixSuggestion> fixes;
     std::vector<TraceStep>  trace;
 
+    // Optional INVALID/VALID code comparison, shown by
+    // DiagnosticCollector only when invalidExample is non-empty.
+    // Most kinds leave these empty — they exist for syntax-SHAPE
+    // errors (e.g. PARSE_MalformedExpression) where showing the
+    // exact wrong snippet next to a few corrected forms is clearer
+    // than prose alone.
+    std::string              invalidExample;
+    std::vector<std::string> validExamples;
+
     // Convenience: is this an error-level or worse?
     bool isError() const {
         return severity == Severity::Error || severity == Severity::Fatal;

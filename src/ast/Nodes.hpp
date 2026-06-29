@@ -61,6 +61,20 @@ struct BinaryExprNode : ASTNode {
     std::string nodeType() const override { return "BinaryExpr"; }
 };
 
+// Assignment expression: x = 3, a = b = c (right-associative)
+// Unlike BinaryExprNode, the left-hand side is restricted to a bare
+// variable name (not an arbitrary expression) — this language has no
+// pointers/arrays, so an identifier is the only assignable target.
+// The expression's VALUE is whatever `value` evaluates to; see
+// IRGenerator::visit(AssignmentExprNode&) for how that's lowered.
+struct AssignmentExprNode : ASTNode {
+    std::string              name;   // assignment target
+    std::unique_ptr<ASTNode> value;  // right-hand side
+
+    void accept(ASTVisitor& v) override { v.visit(*this); }
+    std::string nodeType() const override { return "AssignmentExpr"; }
+};
+
 // ────────────────────────────────────────────────────────────
 //  STATEMENTS
 // ────────────────────────────────────────────────────────────

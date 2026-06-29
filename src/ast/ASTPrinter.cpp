@@ -92,6 +92,15 @@ void ASTPrinter::visit(BinaryExprNode& n) {
     pop();
 }
 
+void ASTPrinter::visit(AssignmentExprNode& n) {
+    std::string label = "Assign(" + n.name + ")";
+    if (!n.resolvedType.empty()) label += "  [" + n.resolvedType + "]";
+    line(label);
+    push();
+    if (n.value) n.value->accept(*this);
+    pop();
+}
+
 void ASTPrinter::visit(IdentifierNode& n) {
     std::string label = "Identifier(" + n.name + ")";
     if (!n.resolvedType.empty()) label += "  [" + n.resolvedType + "]";

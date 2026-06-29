@@ -313,6 +313,126 @@ TEST("comparison: < and > parsed correctly", [](){
     ASSERT_EQ(cmp->op, std::string("<"));
 });
 
+// ── Assignment expressions ──────────────────────────────────────
+// (bug report: "Parser incorrectly rejects assignment expressions
+// inside return statements" — these are the 5 validation cases
+// from that report, plus the error path it also specified.)
+
+TEST("assignment: return x = 3 parses to AssignmentExpr(x, 3)", [](){
+    auto out = parseSource("int main() { int x = 5; return x = 3; }");
+    ASSERT_TRUE(!out.hasErrors());
+
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[1].get());
+    AssignmentExprNode* assign = dynamic_cast<AssignmentExprNode*>(ret->value.get());
+    ASSERT_TRUE(assign != nullptr);
+    ASSERT_EQ(assign->name, std::string("x"));
+    IntLiteralNode* rhs = dynamic_cast<IntLiteralNode*>(assign->value.get());
+    ASSERT_TRUE(rhs != nullptr);
+    ASSERT_EQ(rhs->value, 3);
+});
+
+TEST("assignment: parenthesised return (x = 3) parses the same as unparenthesised", [](){
+    auto out = parseSource("int main() { int x = 5; return (x = 3); }");
+    ASSERT_TRUE(!out.hasErrors());
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[1].get());
+    ASSERT_TRUE(dynamic_cast<AssignmentExprNode*>(ret->value.get()) != nullptr);
+});
+
+TEST("assignment: return x = y + 1 — RHS can be a full expression", [](){
+    auto out = parseSource("int main() { int x=0; int y=0; return x = y + 1; }");
+    ASSERT_TRUE(!out.hasErrors());
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[2].get());
+    AssignmentExprNode* assign = dynamic_cast<AssignmentExprNode*>(ret->value.get());
+    ASSERT_TRUE(assign != nullptr);
+    BinaryExprNode* rhs = dynamic_cast<BinaryExprNode*>(assign->value.get());
+    ASSERT_TRUE(rhs != nullptr);
+    ASSERT_EQ(rhs->op, std::string("+"));
+});
+
+TEST("assignment: a = b = c is right-associative -> Assign(a, Assign(b, c))", [](){
+    auto out = parseSource("int main() { int a=0; int b=0; int c=0; return a = b = c; }");
+    ASSERT_TRUE(!out.hasErrors());
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[3].get());
+    AssignmentExprNode* outer = dynamic_cast<AssignmentExprNode*>(ret->value.get());
+    ASSERT_TRUE(outer != nullptr);
+    ASSERT_EQ(outer->name, std::string("a"));
+    AssignmentExprNode* inner = dynamic_cast<AssignmentExprNode*>(outer->value.get());
+    ASSERT_TRUE(inner != nullptr);
+    ASSERT_EQ(inner->name, std::string("b"));
+    ASSERT_TRUE(dynamic_cast<IdentifierNode*>(inner->value.get()) != nullptr);
+});
+
+TEST("assignment: (x = 2) + 1 — assignment used as a sub-expression", [](){
+    auto out = parseSource("int main() { int x=0; return (x = 2) + 1; }");
+    ASSERT_TRUE(!out.hasErrors());
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[1].get());
+    BinaryExprNode* plus = dynamic_cast<BinaryExprNode*>(ret->value.get());
+    ASSERT_TRUE(plus != nullptr);
+    ASSERT_EQ(plus->op, std::string("+"));
+    ASSERT_TRUE(dynamic_cast<AssignmentExprNode*>(plus->left.get()) != nullptr);
+});
+
+TEST("assignment: plain x + 2 is unaffected by the new precedence level", [](){
+    auto out = parseSource("int main() { return x + 2; }");
+    ASSERT_TRUE(!out.hasErrors());
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        out.output->functions[0]->body->statements[0].get());
+    ASSERT_TRUE(dynamic_cast<BinaryExprNode*>(ret->value.get()) != nullptr);
+});
+
+TEST("assignment: invalid target (a + b = 5) produces exactly one diagnostic, no cascade", [](){
+    auto out = parseSource("int main() { int a=1; int b=2; return a + b = 5; }");
+    ASSERT_TRUE(out.hasErrors());
+    ASSERT_EQ((int)out.diagnostics.size(), 1);
+    ASSERT_EQ(out.diagnostics[0].kind, DiagnosticKind::PARSE_InvalidAssignmentTarget);
+});
+
+// ── Malformed expression (two values, no operator) ─────────────
+// (bug report: "return x 2;" should produce one rich
+// PARSE_MalformedExpression diagnostic instead of the generic
+// "expected ';' found '2'" PARSE_UnexpectedToken message.)
+
+TEST("malformed: return x 2 produces exactly one diagnostic, no cascade", [](){
+    auto out = parseSource("int main() { int x=1; return x 2; }");
+    ASSERT_TRUE(out.hasErrors());
+    ASSERT_EQ((int)out.diagnostics.size(), 1);
+    ASSERT_EQ(out.diagnostics[0].kind, DiagnosticKind::PARSE_MalformedExpression);
+});
+
+TEST("malformed: diagnostic carries invalidExample and validExamples", [](){
+    auto out = parseSource("int main() { int x=1; return x 2; }");
+    ASSERT_TRUE(out.hasErrors());
+    const Diagnostic& d = out.diagnostics[0];
+    ASSERT_EQ(d.invalidExample, std::string("x 2"));
+    ASSERT_EQ((int)d.validExamples.size(), 3);
+    ASSERT_EQ(d.validExamples[0], std::string("x + 2"));
+    ASSERT_EQ(d.validExamples[1], std::string("x * 2"));
+    ASSERT_EQ(d.validExamples[2], std::string("x = 2"));
+});
+
+TEST("malformed: parser still recovers and parses the next statement", [](){
+    auto out = parseSource(
+        "int main() {\n"
+        "    int x = 1;\n"
+        "    return x 2;\n"
+        "}\n"
+        "int g() { return 9; }\n"
+    );
+    ASSERT_TRUE(out.hasErrors());
+    ASSERT_EQ((int)out.output->functions.size(), 2);
+    ASSERT_EQ(out.output->functions[1]->name, std::string("g"));
+});
+
+TEST("malformed: return x + 2 is unaffected (operator present, no false positive)", [](){
+    auto out = parseSource("int f() { return x + 2; }");
+    ASSERT_TRUE(!out.hasErrors());
+});
+
 int main() {
     std::cout << "=== Parser Unit Tests ===\n\n";
     return RUN_ALL_TESTS();

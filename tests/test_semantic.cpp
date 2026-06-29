@@ -227,6 +227,59 @@ TEST("diagnostic: trace steps present for semantic errors", [](){
     ASSERT_TRUE(!r.sem.diagnostics[0].trace.back().ok);
 });
 
+// ── Assignment expressions ──────────────────────────────────────
+
+TEST("assignment: x = 3 where x is declared int — no errors, resolvedType int", [](){
+    auto r = run("int main() { int x = 5; return x = 3; }");
+    ASSERT_TRUE(!r.sem.hasErrors());
+
+    ReturnStmtNode* ret = dynamic_cast<ReturnStmtNode*>(
+        r.program->functions[0]->body->statements[1].get());
+    AssignmentExprNode* assign = dynamic_cast<AssignmentExprNode*>(ret->value.get());
+    ASSERT_TRUE(assign != nullptr);
+    ASSERT_EQ(assign->resolvedType, std::string("int"));
+});
+
+TEST("assignment: target must already be declared", [](){
+    auto r = run("int main() { return y = 3; }");
+    ASSERT_TRUE(r.sem.hasErrors());
+    ASSERT_EQ(r.sem.diagnostics[0].kind, DiagnosticKind::SEM_UndeclaredIdentifier);
+});
+
+TEST("assignment: type mismatch when RHS is bool and target is int", [](){
+    // x = a < b: RHS is a comparison (bool), x is declared int.
+    auto r = run("int main() { int x=0; int a=1; int b=2; return x = a < b; }");
+    ASSERT_TRUE(r.sem.hasErrors());
+    ASSERT_EQ(r.sem.diagnostics[0].kind, DiagnosticKind::SEM_TypeMismatch);
+});
+
+TEST("assignment: chained a = b = c — both targets must be declared, both pass", [](){
+    auto r = run("int main() { int a=0; int b=0; int c=7; return a = b = c; }");
+    ASSERT_TRUE(!r.sem.hasErrors());
+});
+
+// ── Bare return in a non-void function ───────────────────────────
+// (20-case verification suite, case 13: a bare 'return;' inside
+// int main() was silently accepted — logFail() recorded it in the
+// semantic log but no Diagnostic was ever raised, so codegen went
+// on to emit leave/ret with nothing placed in the return register.)
+
+TEST("return: bare 'return;' in non-void function raises SEM_ReturnTypeMismatch", [](){
+    auto r = run("int main() { return; }");
+    ASSERT_TRUE(r.sem.hasErrors());
+    ASSERT_EQ(r.sem.diagnostics[0].kind, DiagnosticKind::SEM_ReturnTypeMismatch);
+    ASSERT_TRUE(!r.sem.diagnostics[0].explanation.empty());
+    ASSERT_TRUE(!r.sem.diagnostics[0].fixes.empty());
+    ASSERT_TRUE(!r.sem.diagnostics[0].trace.empty());
+});
+
+TEST("return: bare 'return;' message names the function and its return type", [](){
+    auto r = run("int compute() { return; }");
+    ASSERT_TRUE(r.sem.hasErrors());
+    ASSERT_TRUE(r.sem.diagnostics[0].message.find("compute") != std::string::npos);
+    ASSERT_TRUE(r.sem.diagnostics[0].message.find("int")     != std::string::npos);
+});
+
 int main() {
     std::cout << "=== Semantic Analysis Unit Tests ===\n\n";
     return RUN_ALL_TESTS();

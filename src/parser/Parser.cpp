@@ -1,5 +1,38 @@
 #include "Parser.hpp"
 
+// ────────────────────────────────────────────────────────────
+//  exprToSourceText — reconstruct source-like text from an
+//  already-parsed expression, for diagnostics that need to show
+//  the user what was read so far (e.g. PARSE_MalformedExpression's
+//  "The parser successfully read: return x").
+//
+//  AST nodes are pure data with no behaviour (see Nodes.hpp), so
+//  this lives as a free function using the nodeType()+static_cast
+//  dispatch idiom already used by ASTPrinter.cpp, rather than as
+//  a virtual method on ASTNode.
+// ────────────────────────────────────────────────────────────
+namespace {
+std::string exprToSourceText(const ASTNode& n) {
+    const std::string kind = n.nodeType();
+
+    if (kind == "IntLiteral") {
+        return std::to_string(static_cast<const IntLiteralNode&>(n).value);
+    }
+    if (kind == "Identifier") {
+        return static_cast<const IdentifierNode&>(n).name;
+    }
+    if (kind == "BinaryExpr") {
+        const auto& b = static_cast<const BinaryExprNode&>(n);
+        return exprToSourceText(*b.left) + " " + b.op + " " + exprToSourceText(*b.right);
+    }
+    if (kind == "AssignmentExpr") {
+        const auto& a = static_cast<const AssignmentExprNode&>(n);
+        return a.name + " = " + exprToSourceText(*a.value);
+    }
+    return "<expr>";
+}
+}  // namespace
+
 Parser::Parser(std::vector<Token> tokens)
     : tokens_(std::move(tokens))
     , pos_(0)
@@ -162,6 +195,15 @@ std::unique_ptr<VarDeclNode> Parser::parseVarDecl() {
 //  parseReturnStmt
 //
 //  Grammar: 'return' expression? ';'
+//
+//  After parsing the return expression, a well-formed statement
+//  must see ';' next. If instead the current token ALSO starts a
+//  valid expression (e.g. "return x 2;"), that is not a generic
+//  "missing token" error — the two expressions are individually
+//  valid, just missing an operator between them. Diagnosing that
+//  shape specifically (PARSE_MalformedExpression) lets the message
+//  show both values and suggest an operator, instead of the
+//  generic "expected ';', found '2'".
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<ReturnStmtNode> Parser::parseReturnStmt() {
     Token kwTok = expect(TokenType::KW_RETURN, "'return'");
@@ -170,6 +212,15 @@ std::unique_ptr<ReturnStmtNode> Parser::parseReturnStmt() {
 
     if (!check(TokenType::SEMICOLON)) {
         node->value = parseExpression();
+
+        if (!check(TokenType::SEMICOLON) && isExpressionStart(current().type)) {
+            SourceSpan  straySpan = current().span();
+            std::string leftText  = exprToSourceText(*node->value);
+            std::string strayText = current().lexeme;
+            diagnostics_.push_back(
+                engine_.malformedExpression(leftText, strayText, straySpan));
+            advance();  // consume the stray token so expect(SEMICOLON) below succeeds
+        }
     }
 
     Token semi = expect(TokenType::SEMICOLON, "';' after return value");
@@ -195,7 +246,61 @@ std::unique_ptr<ReturnStmtNode> Parser::parseReturnStmt() {
 // ────────────────────────────────────────────────────────────
 
 std::unique_ptr<ASTNode> Parser::parseExpression() {
-    return parseEquality();
+    return parseAssignment();
+}
+
+// ────────────────────────────────────────────────────────────
+//  parseAssignment
+//
+//  Grammar: IDENTIFIER '=' assignment | equality
+//
+//  Lowest precedence, right-associative — same shape as real
+//  C++ (a = b = c parses as a = (b = c)). Parsed by first
+//  trying the NEXT-higher level (equality) for the left side,
+//  then checking whether '=' follows:
+//    - if it does, 'left' must already be a bare IdentifierNode
+//      (this language has no pointers/arrays, so a name is the
+//      only valid assignment target) — anything else is
+//      PARSE_InvalidAssignmentTarget, not a generic token error,
+//      because the shape that was found IS a valid expression,
+//      just not an assignable one.
+//    - if it doesn't, 'left' is returned unchanged, so plain
+//      "x + 2" still costs nothing extra beyond one wasted check.
+//
+//  Recursing into parseAssignment() (not parseEquality()) for
+//  the right-hand side is what makes this right-associative.
+// ────────────────────────────────────────────────────────────
+std::unique_ptr<ASTNode> Parser::parseAssignment() {
+    auto left = parseEquality();
+
+    if (check(TokenType::ASSIGN)) {
+        SourceSpan opSpan = current().span();
+
+        if (left->nodeType() != "Identifier") {
+            diagnostics_.push_back(
+                engine_.invalidAssignmentTarget(left->nodeType(), opSpan));
+            // Consume '=' and its right-hand side too (parsed, then
+            // discarded) so the token stream still lands on ';' —
+            // otherwise the caller's expect(SEMICOLON) immediately
+            // re-fails on the same unconsumed '=', cascading into two
+            // more spurious diagnostics for one underlying mistake.
+            advance();
+            parseAssignment();
+            return left;
+        }
+
+        std::string name = static_cast<IdentifierNode*>(left.get())->name;
+        advance();  // consume '='
+        auto right = parseAssignment();
+
+        auto node   = std::make_unique<AssignmentExprNode>();
+        node->span  = opSpan;
+        node->name  = name;
+        node->value = std::move(right);
+        return node;
+    }
+
+    return left;
 }
 
 std::unique_ptr<ASTNode> Parser::parseEquality() {
@@ -319,6 +424,17 @@ std::string Parser::parseTypeName() {
 
 bool Parser::isTypeName() const {
     return check(TokenType::KW_INT);
+}
+
+bool Parser::isExpressionStart(TokenType t) const {
+    switch (t) {
+        case TokenType::INTEGER_LITERAL:
+        case TokenType::IDENTIFIER:
+        case TokenType::LPAREN:
+            return true;
+        default:
+            return false;
+    }
 }
 
 // ────────────────────────────────────────────────────────────

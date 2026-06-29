@@ -10,6 +10,7 @@
 struct IntLiteralNode;
 struct IdentifierNode;
 struct BinaryExprNode;
+struct AssignmentExprNode;
 struct VarDeclNode;
 struct ReturnStmtNode;
 struct BlockStmtNode;
@@ -42,6 +43,7 @@ public:
     virtual void visit(VarDeclNode& n)      = 0;
     virtual void visit(ReturnStmtNode& n)   = 0;
     virtual void visit(BinaryExprNode& n)   = 0;
+    virtual void visit(AssignmentExprNode& n) = 0;
     virtual void visit(IdentifierNode& n)   = 0;
     virtual void visit(IntLiteralNode& n)   = 0;
 };

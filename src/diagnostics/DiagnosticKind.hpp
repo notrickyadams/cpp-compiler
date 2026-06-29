@@ -29,12 +29,14 @@ enum class DiagnosticKind {
     PARSE_UnexpectedToken,        // expected ';', got '}'
     PARSE_MissingToken,           // expected '(' after 'if'
     PARSE_UnbalancedBrace,        // missing closing '}'
+    PARSE_InvalidAssignmentTarget, // 3 = 5;  or  (a+b) = 5;
+    PARSE_MalformedExpression,    // return x 2;  -- two values, no operator
 
     // ── Semantic analysis (future) ────────────────────────
     SEM_UndeclaredIdentifier,     // using x before int x
     SEM_TypeMismatch,             // int + string
     SEM_RedeclaredVariable,       // int x; int x;
-    SEM_ReturnTypeMismatch,       // int f() { return "hi"; }
+    SEM_ReturnTypeMismatch,       // int f() { return; }  -- missing the required value
     SEM_VoidReturn,               // void f() { return 5; }
 };
 
@@ -48,12 +50,39 @@ inline std::string diagnosticKindName(DiagnosticKind k) {
         case DiagnosticKind::PARSE_UnexpectedToken:         return "UnexpectedToken";
         case DiagnosticKind::PARSE_MissingToken:            return "MissingToken";
         case DiagnosticKind::PARSE_UnbalancedBrace:         return "UnbalancedBrace";
+        case DiagnosticKind::PARSE_InvalidAssignmentTarget: return "InvalidAssignmentTarget";
+        case DiagnosticKind::PARSE_MalformedExpression:     return "MalformedExpression";
         case DiagnosticKind::SEM_UndeclaredIdentifier:      return "UndeclaredIdentifier";
         case DiagnosticKind::SEM_TypeMismatch:              return "TypeMismatch";
         case DiagnosticKind::SEM_RedeclaredVariable:        return "RedeclaredVariable";
         case DiagnosticKind::SEM_ReturnTypeMismatch:        return "ReturnTypeMismatch";
         case DiagnosticKind::SEM_VoidReturn:                return "VoidReturn";
         default: return "Unknown";
+    }
+}
+
+// Human-readable, SPACED display name for the "ERROR TYPE:" header
+// in DiagnosticCollector's full render. Kept separate from
+// diagnosticKindName() above: that one's exact string ("UndeclaredIdentifier",
+// no space) is relied on verbatim by renderJson() and the visualizer
+// frontend/tests — this one exists purely for human prose.
+inline std::string diagnosticKindDisplayName(DiagnosticKind k) {
+    switch (k) {
+        case DiagnosticKind::LEX_UnexpectedCharacter:       return "Unexpected Character";
+        case DiagnosticKind::LEX_UnterminatedBlockComment:  return "Unterminated Block Comment";
+        case DiagnosticKind::LEX_UnterminatedString:        return "Unterminated String";
+        case DiagnosticKind::LEX_InvalidNumberLiteral:      return "Invalid Number Literal";
+        case DiagnosticKind::PARSE_UnexpectedToken:         return "Unexpected Token";
+        case DiagnosticKind::PARSE_MissingToken:            return "Missing Token";
+        case DiagnosticKind::PARSE_UnbalancedBrace:         return "Unbalanced Brace";
+        case DiagnosticKind::PARSE_InvalidAssignmentTarget: return "Invalid Assignment Target";
+        case DiagnosticKind::PARSE_MalformedExpression:     return "Malformed Expression";
+        case DiagnosticKind::SEM_UndeclaredIdentifier:      return "Undeclared Identifier";
+        case DiagnosticKind::SEM_TypeMismatch:              return "Type Mismatch";
+        case DiagnosticKind::SEM_RedeclaredVariable:        return "Redeclared Variable";
+        case DiagnosticKind::SEM_ReturnTypeMismatch:        return "Return Type Mismatch";
+        case DiagnosticKind::SEM_VoidReturn:                return "Void Return";
+        default: return "Unknown Error";
     }
 }
 
@@ -69,6 +98,8 @@ inline std::string diagnosticStage(DiagnosticKind k) {
         case DiagnosticKind::PARSE_UnexpectedToken:
         case DiagnosticKind::PARSE_MissingToken:
         case DiagnosticKind::PARSE_UnbalancedBrace:
+        case DiagnosticKind::PARSE_InvalidAssignmentTarget:
+        case DiagnosticKind::PARSE_MalformedExpression:
             return "Parser";
 
         case DiagnosticKind::SEM_UndeclaredIdentifier:

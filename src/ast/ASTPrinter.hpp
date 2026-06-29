@@ -31,6 +31,7 @@ public:
     void visit(VarDeclNode& n)      override;
     void visit(ReturnStmtNode& n)   override;
     void visit(BinaryExprNode& n)   override;
+    void visit(AssignmentExprNode& n) override;
     void visit(IdentifierNode& n)   override;
     void visit(IntLiteralNode& n)   override;
 

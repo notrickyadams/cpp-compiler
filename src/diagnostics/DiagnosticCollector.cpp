@@ -3,6 +3,25 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <cctype>
+
+// ─────────────────────────────────────────────────────────────
+//  toSentence — cosmetic only: capitalise the first letter and
+//  ensure a trailing period, for the ROOT CAUSE line. The actual
+//  strings returned by ExplanationBuilder stay lowercase/period-free
+//  (renderJson() and direct callers rely on that exact text) — this
+//  normalises purely at the point of human-readable text display.
+// ─────────────────────────────────────────────────────────────
+namespace {
+std::string toSentence(const std::string& s) {
+    if (s.empty()) return s;
+    std::string out = s;
+    out[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(out[0])));
+    char last = out.back();
+    if (last != '.' && last != '!' && last != '?') out += '.';
+    return out;
+}
+}  // namespace
 
 // ─────────────────────────────────────────────────────────────
 //  Collection
@@ -57,39 +76,60 @@ std::string DiagnosticCollector::makeCaret(int col, int length, char marker) {
 // ─────────────────────────────────────────────────────────────
 //  Full render (the flagship output)
 //
-//  Visual format:
+//  Visual format — one named section per line of inquiry, in the
+//  order a developer actually asks them: what is it, where is it,
+//  why did it happen, what did the compiler see, what should it
+//  have seen, how do I fix it, how did the compiler get here.
 //
 //  ============================================================
-//  error[UnexpectedCharacter]: unexpected character '@'
-//  ============================================================
+//  ERROR TYPE:
+//  Malformed Expression
 //
-//    --> input:2:9
+//  LOCATION:
+//  line 3, column 15
 //
-//    Source
-//    ------
-//    2 | int @x = 5;
-//        ----^
+//      3 | return x 2;
+//        |          ^
 //
-//    Root cause
-//    ----------
-//    '@' is not the start of any valid token
+//  ROOT CAUSE:
+//  Two expressions appeared consecutively with no operator.
 //
-//    Why this happened
-//    -----------------
-//    The lexer scans source text character by character...
+//  WHAT HAPPENED:
+//  The parser successfully read:
 //
-//    How to fix
-//    ----------
-//    1. Remove the '@' character
-//    2. ...
+//  return x
 //
-//    Internal trace
-//    --------------
-//    [ok]  Lexer::tokenize()
-//    [ok]  Lexer::nextToken()
-//    [FAIL] Lexer::lexSymbol() -- switch default
-//    [FAIL] DiagnosticEngine::unexpectedChar()
+//  After completing the return expression,
+//  it encountered another value:
 //
+//  2
+//
+//  C++ requires an operator between values.
+//
+//  INVALID:
+//
+//  x 2
+//
+//  VALID:
+//
+//  x + 2
+//  x * 2
+//  x = 2
+//
+//  HOW TO FIX:
+//  Insert an operator between x and 2
+//  or remove the extra value
+//
+//  TRACE:
+//  Parser
+//  → Parser::parseReturnStmt()
+//  → Parser::isExpressionStart()
+//  → DiagnosticEngine::malformedExpression()
+//
+//  INVALID/VALID only appear when the Diagnostic actually carries
+//  example text (Diagnostic::invalidExample non-empty) — most kinds
+//  leave WHAT HAPPENED/ROOT CAUSE/HOW TO FIX/TRACE to carry the full
+//  explanation and skip the code-comparison sections entirely.
 // ─────────────────────────────────────────────────────────────
 
 void DiagnosticCollector::render(std::ostream& out,
@@ -113,86 +153,68 @@ void DiagnosticCollector::render(std::ostream& out,
 void DiagnosticCollector::renderOne(std::ostream& out,
                                      const Diagnostic& d,
                                      const std::string& source,
-                                     const std::string& filename) const {
+                                     const std::string& /*filename*/) const {
     const std::string sep(62, '=');
-    const std::string thin(62, '-');
 
-    // ── Header ───────────────────────────────────────────
     out << sep << "\n";
-    out << severityName(d.severity) << "["
-        << diagnosticKindName(d.kind) << "]: "
-        << d.message << "\n";
-    out << sep << "\n\n";
 
-    // ── Location ─────────────────────────────────────────
-    out << "  --> " << filename << ":"
-        << d.span.startLine << ":" << d.span.startCol << "\n\n";
+    // ── ERROR TYPE ───────────────────────────────────────
+    out << "ERROR TYPE:\n" << diagnosticKindDisplayName(d.kind) << "\n\n";
 
-    // ── Source extract + caret ────────────────────────────
+    // ── LOCATION (+ source extract/caret) ─────────────────
+    out << "LOCATION:\n";
+    out << "line " << d.span.startLine << ", column " << d.span.startCol << "\n";
     if (!source.empty()) {
-        std::string line = extractLine(source, d.span.startLine);
+        std::string line    = extractLine(source, d.span.startLine);
         std::string lineNum = std::to_string(d.span.startLine);
-        // Pad to 3 chars for alignment
-        while ((int)lineNum.size() < 3) lineNum = " " + lineNum;
-
-        out << "  Source\n";
-        out << "  " << thin.substr(0, 24) << "\n";
-        out << "  " << lineNum << " | " << line << "\n";
-
-        std::string caret = makeCaret(d.span.startCol,
-                                       std::max(1, d.span.length));
-        out << "       | " << caret << "\n";
-        out << "       | ";
-        // Arrow label under caret
-        for (int i = 1; i < d.span.startCol; ++i) out << " ";
-        out << "+----- " << d.rootCause << "\n";
-        out << "\n";
-    }
-
-    // ── Root cause (one sentence) ─────────────────────────
-    out << "  Root cause\n";
-    out << "  " << thin.substr(0, 14) << "\n";
-    out << "  " << d.rootCause << "\n\n";
-
-    // ── Explanation (WHY) ─────────────────────────────────
-    out << "  Why this happened\n";
-    out << "  " << thin.substr(0, 20) << "\n";
-    // Wrap and indent explanation
-    std::istringstream ss(d.explanation);
-    std::string sentence;
-    while (std::getline(ss, sentence)) {
-        if (!sentence.empty()) out << "  " << sentence << "\n";
+        std::string caret   = makeCaret(d.span.startCol, std::max(1, d.span.length));
+        out << "\n    " << lineNum << " | " << line << "\n";
+        out << "    " << std::string(lineNum.size(), ' ') << " | " << caret << "\n";
     }
     out << "\n";
 
-    // ── Fix suggestions ───────────────────────────────────
-    if (!d.fixes.empty()) {
-        out << "  How to fix\n";
-        out << "  " << thin.substr(0, 13) << "\n";
-        for (std::size_t i = 0; i < d.fixes.size(); ++i) {
-            out << "  " << (i + 1) << ". " << d.fixes[i].description << "\n";
-        }
+    // ── ROOT CAUSE (one sentence) ─────────────────────────
+    out << "ROOT CAUSE:\n" << toSentence(d.rootCause) << "\n\n";
+
+    // ── WHAT HAPPENED (the WHY, may be multi-paragraph) ───
+    out << "WHAT HAPPENED:\n";
+    std::istringstream ss(d.explanation);
+    std::string lineText;
+    while (std::getline(ss, lineText)) {
+        out << lineText << "\n";
+    }
+    out << "\n";
+
+    // ── INVALID / VALID (only when populated) ─────────────
+    if (!d.invalidExample.empty()) {
+        out << "INVALID:\n\n" << d.invalidExample << "\n\n";
+    }
+    if (!d.validExamples.empty()) {
+        out << "VALID:\n\n";
+        for (const auto& v : d.validExamples) out << v << "\n";
         out << "\n";
     }
 
-    // ── Internal trace ────────────────────────────────────
-    if (!d.trace.empty()) {
-        out << "  Internal trace\n";
-        out << "  " << thin.substr(0, 16) << "\n";
-        renderTrace(out, d.trace);
+    // ── HOW TO FIX ─────────────────────────────────────────
+    if (!d.fixes.empty()) {
+        out << "HOW TO FIX:\n";
+        for (const auto& f : d.fixes) out << f.description << "\n";
         out << "\n";
+    }
+
+    // ── TRACE (arrow chain, no [ok]/[FAIL] brackets) ──────
+    if (!d.trace.empty()) {
+        out << "TRACE:\n";
+        renderTrace(out, d.trace);
     }
 }
 
 void DiagnosticCollector::renderTrace(std::ostream& out,
                                        const std::vector<TraceStep>& trace) {
-    for (std::size_t i = 0; i < trace.size(); ++i) {
-        const auto& step = trace[i];
-        std::string prefix = (i + 1 < trace.size()) ? "  |-- " : "  `-- ";
-        std::string status = step.ok ? "[ok  ]" : "[FAIL]";
-        out << "  " << status << " " << step.component;
-        if (!step.detail.empty()) out << "  -- " << step.detail;
-        out << "\n";
+    if (trace.empty()) return;
+    out << trace.front().stage << "\n";
+    for (const auto& step : trace) {
+        out << "→ " << step.component << "\n";
     }
 }
 
@@ -231,6 +253,13 @@ void DiagnosticCollector::renderJson(std::ostream& out,
         out << "      \"message\": \""     << jsonEscape(d.message)     << "\",\n";
         out << "      \"rootCause\": \""   << jsonEscape(d.rootCause)   << "\",\n";
         out << "      \"explanation\": \"" << jsonEscape(d.explanation) << "\",\n";
+        out << "      \"invalidExample\": \"" << jsonEscape(d.invalidExample) << "\",\n";
+        out << "      \"validExamples\": [";
+        for (std::size_t j = 0; j < d.validExamples.size(); ++j) {
+            out << "\"" << jsonEscape(d.validExamples[j]) << "\"";
+            if (j + 1 < d.validExamples.size()) out << ", ";
+        }
+        out << "],\n";
         out << "      \"fixes\": [";
         for (std::size_t j = 0; j < d.fixes.size(); ++j) {
             out << "\"" << jsonEscape(d.fixes[j].description) << "\"";
