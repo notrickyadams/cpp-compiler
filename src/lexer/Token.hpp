@@ -1,5 +1,6 @@
 #pragma once
 #include "../core/SourceSpan.hpp"
+#include "../core/Json.hpp"
 #include <string>
 #include <unordered_map>
 
@@ -95,6 +96,15 @@ struct Token {
             s += "(" + lexeme + ")";
         }
         return s;
+    }
+
+    // For the Stage 8 visualizer: line/column let the frontend
+    // highlight the exact source span a token came from.
+    std::string toJson() const {
+        return "{\"type\":\"" + jsonEscape(tokenTypeName(type)) +
+               "\",\"lexeme\":\"" + jsonEscape(lexeme) +
+               "\",\"line\":" + std::to_string(line) +
+               ",\"column\":" + std::to_string(column) + "}";
     }
 };
 

@@ -1,0 +1,180 @@
+:root {
+  --bg:        #1e1f29;
+  --panel:     #262834;
+  --border:    #3a3d4d;
+  --text:      #e4e6f0;
+  --muted:     #8a8da3;
+  --accent:    #7aa2f7;
+  --green:     #9ece6a;
+  --red:       #f7768e;
+  --yellow:    #e0af68;
+  --mono:      "Consolas", "SF Mono", "Cascadia Code", monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
+}
+
+header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-family: var(--mono);
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+main {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 16px;
+  padding: 16px 24px;
+  height: calc(100vh - 64px);
+}
+
+.source-pane, .output-pane {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#compileBtn {
+  background: var(--accent);
+  color: #11131a;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+#compileBtn:hover { opacity: 0.9; }
+#compileBtn:disabled { opacity: 0.5; cursor: default; }
+
+#sourceInput {
+  flex: 1;
+  background: var(--bg);
+  color: var(--text);
+  border: none;
+  padding: 14px;
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+
+.status {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: var(--mono);
+  border-top: 1px solid var(--border);
+  min-height: 16px;
+}
+
+.status.ok    { color: var(--green); }
+.status.error { color: var(--red); }
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 10px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover  { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.panel {
+  display: none;
+  flex: 1;
+  overflow: auto;
+  padding: 14px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.panel.active { display: block; }
+
+.panel pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.placeholder { color: var(--muted); }
+
+/* ── Token chips ──────────────────────────────────────── */
+.token-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.token-chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.token-chip .t-type { color: var(--accent); }
+.token-chip .t-pos  { color: var(--muted); margin-left: 4px; }
+
+/* ── AST tree ─────────────────────────────────────────── */
+.ast-tree details { margin-left: 14px; }
+.ast-tree summary {
+  cursor: pointer;
+  padding: 2px 0;
+}
+.ast-node-name { color: var(--accent); font-weight: 600; }
+.ast-field     { color: var(--yellow); }
+.ast-type      { color: var(--green); }
+.ast-leaf      { margin-left: 14px; padding: 2px 0; }
+
+/* ── Diagnostics ──────────────────────────────────────── */
+.diag {
+  border: 1px solid var(--red);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: rgba(247, 118, 142, 0.08);
+}
+.diag-header { color: var(--red); font-weight: 600; margin-bottom: 8px; }
+.diag h4 { margin: 10px 0 4px; color: var(--muted); font-size: 12px; text-transform: uppercase; }
+.diag p, .diag ol { margin: 4px 0; }
+.diag .trace-step { color: var(--muted); }
+.diag .trace-fail  { color: var(--red); }

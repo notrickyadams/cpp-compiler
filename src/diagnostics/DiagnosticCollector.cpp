@@ -1,4 +1,5 @@
 #include "DiagnosticCollector.hpp"
+#include "../core/Json.hpp"
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -210,21 +211,10 @@ void DiagnosticCollector::renderCompact(std::ostream& out,
 }
 
 // ─────────────────────────────────────────────────────────────
-//  JSON render (for visualizer — Stage 8 of project)
+//  JSON render (for the Stage 8 visualizer — jsonEscape() lives
+//  in core/Json.hpp now, shared with every other stage that
+//  feeds the visualizer's JSON export)
 // ─────────────────────────────────────────────────────────────
-
-static std::string jsonEscape(const std::string& s) {
-    std::string out;
-    for (char c : s) {
-        if (c == '"')  out += "\\\"";
-        else if (c == '\\') out += "\\\\";
-        else if (c == '\n') out += "\\n";
-        else if (c == '\r') out += "\\r";
-        else if (c == '\t') out += "\\t";
-        else out += c;
-    }
-    return out;
-}
 
 void DiagnosticCollector::renderJson(std::ostream& out,
                                       const std::string& /*source*/) const {

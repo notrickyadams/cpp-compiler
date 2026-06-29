@@ -11,7 +11,8 @@ DIAG_SRCS := $(SRC_DIR)/diagnostics/ExplanationBuilder.cpp \
              $(SRC_DIR)/diagnostics/DiagnosticCollector.cpp
 
 LEXER_SRCS     := $(SRC_DIR)/lexer/Lexer.cpp
-AST_SRCS       := $(SRC_DIR)/ast/ASTPrinter.cpp
+AST_SRCS       := $(SRC_DIR)/ast/ASTPrinter.cpp \
+                   $(SRC_DIR)/ast/ASTJsonPrinter.cpp
 PARSER_SRCS    := $(SRC_DIR)/parser/Parser.cpp
 SEMANTIC_SRCS  := $(SRC_DIR)/semantic/SemanticAnalyzer.cpp
 IR_SRCS        := $(SRC_DIR)/ir/IRGenerator.cpp
@@ -42,7 +43,7 @@ $(BUILD)/compiler: $(MAIN_SRCS)
 # ── Test binaries — one per stage ────────────────────────────
 tests: $(BUILD)/test_lexer $(BUILD)/test_diagnostics $(BUILD)/test_parser \
        $(BUILD)/test_semantic $(BUILD)/test_ir $(BUILD)/test_optimizer \
-       $(BUILD)/test_codegen $(BUILD)/test_driver
+       $(BUILD)/test_codegen $(BUILD)/test_driver $(BUILD)/test_visualizer
 
 $(BUILD)/test_lexer: $(TEST_DIR)/test_lexer.cpp $(DIAG_SRCS) $(LEXER_SRCS)
 	@if not exist $(BUILD) mkdir $(BUILD)
@@ -76,6 +77,13 @@ $(BUILD)/test_driver: $(TEST_DIR)/test_driver.cpp $(CODEGEN_SRCS) $(DRIVER_SRCS)
 	@if not exist $(BUILD) mkdir $(BUILD)
 	$(CXX) $(CXXFLAGS) -I$(SRC_DIR) -I$(TEST_DIR) -o $@ $^
 
+# Depends on $(BUILD)/compiler too: its end-to-end tests shell out to
+# the real compiler binary's --json mode, the same way test_codegen
+# and test_driver shell out to g++.
+$(BUILD)/test_visualizer: $(TEST_DIR)/test_visualizer.cpp $(ALL_STAGE_SRCS) $(BUILD)/compiler
+	@if not exist $(BUILD) mkdir $(BUILD)
+	$(CXX) $(CXXFLAGS) -I$(SRC_DIR) -I$(TEST_DIR) -o $@ $(TEST_DIR)/test_visualizer.cpp $(ALL_STAGE_SRCS)
+
 run-tests: tests
 	$(BUILD)/test_lexer
 	$(BUILD)/test_diagnostics
@@ -85,6 +93,7 @@ run-tests: tests
 	$(BUILD)/test_optimizer
 	$(BUILD)/test_codegen
 	$(BUILD)/test_driver
+	$(BUILD)/test_visualizer
 
 clean:
 	@if exist $(BUILD) rmdir /s /q $(BUILD)

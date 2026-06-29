@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>cpp-compiler — visualizer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>cpp-compiler</h1>
+  <span class="subtitle">source &rarr; tokens &rarr; AST &rarr; IR &rarr; assembly</span>
+</header>
+
+<main>
+  <section class="source-pane">
+    <div class="pane-header">
+      <span>Source</span>
+      <button id="compileBtn">Compile ▶</button>
+    </div>
+    <textarea id="sourceInput" spellcheck="false">int main() {
+    int x = 5;
+    return x + 2;
+}
+</textarea>
+    <div id="statusLine" class="status"></div>
+  </section>
+
+  <section class="output-pane">
+    <nav class="tabs">
+      <button class="tab active" data-tab="diagnostics">Diagnostics</button>
+      <button class="tab" data-tab="tokens">Tokens</button>
+      <button class="tab" data-tab="ast">AST</button>
+      <button class="tab" data-tab="semantic">Semantic</button>
+      <button class="tab" data-tab="irBefore">IR (before)</button>
+      <button class="tab" data-tab="irAfter">IR (after)</button>
+      <button class="tab" data-tab="optimization">Optimization</button>
+      <button class="tab" data-tab="assembly">Assembly</button>
+    </nav>
+
+    <div class="panel active" id="panel-diagnostics"><p class="placeholder">Click Compile to see diagnostics.</p></div>
+    <div class="panel" id="panel-tokens"></div>
+    <div class="panel" id="panel-ast"></div>
+    <div class="panel" id="panel-semantic"></div>
+    <div class="panel" id="panel-irBefore"><pre></pre></div>
+    <div class="panel" id="panel-irAfter"><pre></pre></div>
+    <div class="panel" id="panel-optimization"></div>
+    <div class="panel" id="panel-assembly"><pre></pre></div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

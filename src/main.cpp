@@ -5,12 +5,14 @@
 #include "lexer/Lexer.hpp"
 #include "parser/Parser.hpp"
 #include "ast/ASTPrinter.hpp"
+#include "ast/ASTJsonPrinter.hpp"
 #include "semantic/SemanticAnalyzer.hpp"
 #include "ir/IRGenerator.hpp"
 #include "optimizer/Optimizer.hpp"
 #include "codegen/AssemblyGenerator.hpp"
 #include "driver/Toolchain.hpp"
 #include "diagnostics/DiagnosticCollector.hpp"
+#include "core/Json.hpp"
 
 static void compile(const std::string& src,
                     const std::string& label,
@@ -180,18 +182,125 @@ static int compileFile(const std::string& inputPath, const std::string& outputPa
     return 0;
 }
 
+// ============================================================
+//  compileToJson — Stage 8: feeds the visualizer.
+//
+//  Runs the same pipeline as compileFile(), minus the final
+//  Toolchain step — the visualizer shows pipeline STAGES, it has
+//  no use for a linked .exe. Stops gathering further stages as
+//  soon as collector.hasErrors(), same short-circuit compileFile()
+//  uses, but unlike compileFile() it still emits whatever AST
+//  exists (even a partially-recovered one after a parse error) —
+//  seeing where the parser got confused has real value here.
+//
+//  Each field is a self-contained JSON value at the point the
+//  pipeline stopped: stages that never ran emit "" / [] / null,
+//  not absent keys, so the frontend can rely on a fixed shape.
+// ============================================================
+static int compileToJson(const std::string& inputPath) {
+    std::ifstream in(inputPath);
+    if (!in) {
+        std::cout << "{\"error\":\"could not open '" << jsonEscape(inputPath) << "'\"}\n";
+        return 1;
+    }
+    std::stringstream buf;
+    buf << in.rdbuf();
+    const std::string src = buf.str();
+
+    DiagnosticCollector collector;
+
+    std::vector<std::string> tokenJsons;
+    std::string              astJson = "null";
+    std::vector<std::string> semanticLog;
+    std::string              irBefore;
+    std::string              irAfter;
+    std::vector<std::string> optReports;
+    std::string              assembly;
+
+    Lexer lexer(src);
+    auto lexOut = lexer.tokenize();
+    collector.addAll(lexOut.diagnostics);
+    for (auto& tok : lexOut.output) {
+        if (tok.type != TokenType::END_OF_FILE) tokenJsons.push_back(tok.toJson());
+    }
+
+    if (!collector.hasErrors()) {
+        Parser parser(lexOut.output);
+        auto parseOut = parser.parse();
+        collector.addAll(parseOut.diagnostics);
+
+        if (!collector.hasErrors() && parseOut.output) {
+            SemanticAnalyzer analyzer;
+            auto semOut = analyzer.analyze(*parseOut.output);
+            collector.addAll(semOut.diagnostics);
+            semanticLog = analyzer.log();
+        }
+
+        if (parseOut.output) {
+            ASTJsonPrinter astPrinter;
+            astJson = astPrinter.toJson(*parseOut.output);
+        }
+
+        if (!collector.hasErrors() && parseOut.output) {
+            IRGenerator irgen;
+            IRProgram ir = irgen.generate(*parseOut.output);
+            irBefore = ir.toString();
+
+            Optimizer optimizer;
+            auto reports = optimizer.optimize(ir);
+            irAfter = ir.toString();
+
+            for (auto& r : reports) {
+                optReports.push_back(
+                    "Optimization report [" + r.functionName + "]: " +
+                    std::to_string(r.instructionsBefore) + " -> " +
+                    std::to_string(r.instructionsAfter) + " instructions, " +
+                    std::to_string(r.iterations) + " fixed-point iteration(s)");
+            }
+
+            AssemblyGenerator codegen;
+            AssemblyProgram asmProg = codegen.generate(ir);
+            assembly = asmProg.toString();
+        }
+    }
+
+    std::ostringstream diagJson;
+    collector.renderJson(diagJson, src);
+
+    std::ostringstream json;
+    json << "{\n";
+    json << "  \"source\": \""             << jsonEscape(src)      << "\",\n";
+    json << "  \"tokens\": "                << jsonArray(tokenJsons) << ",\n";
+    json << "  \"ast\": "                   << astJson               << ",\n";
+    json << "  \"semanticLog\": "           << jsonStringArray(semanticLog) << ",\n";
+    json << "  \"irBefore\": \""            << jsonEscape(irBefore) << "\",\n";
+    json << "  \"irAfter\": \""             << jsonEscape(irAfter)  << "\",\n";
+    json << "  \"optimizationReports\": "   << jsonStringArray(optReports)  << ",\n";
+    json << "  \"assembly\": \""            << jsonEscape(assembly) << "\",\n";
+    json << "  \"diagnosticsReport\": "     << diagJson.str()       << "\n";
+    json << "}\n";
+
+    std::cout << json.str();
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (argc >= 2) {
         std::string inputPath  = argv[1];
         std::string outputPath = "a.exe";
-        for (int i = 2; i + 1 < argc; ++i) {
-            if (std::string(argv[i]) == "-o") outputPath = argv[i + 1];
+        bool        jsonMode   = false;
+        for (int i = 2; i < argc; ++i) {
+            std::string arg = argv[i];
+            if (arg == "-o" && i + 1 < argc)      outputPath = argv[++i];
+            else if (arg == "--json")             jsonMode = true;
         }
+        if (jsonMode) return compileToJson(inputPath);
         return compileFile(inputPath, outputPath);
     }
 
-    std::cout << "cpp-compiler  |  Stages 1-7: Lexer + Parser + Semantic + IR + Optimizer + Codegen + Executable\n";
-    std::cout << "(pass a source file as an argument to compile it directly: ./compiler input.cpp -o output.exe)\n";
+    std::cout << "cpp-compiler  |  Stages 1-8: Lexer + Parser + Semantic + IR + Optimizer + Codegen + Executable + Visualizer\n";
+    std::cout << "(pass a source file to compile it directly: ./compiler input.cpp -o output.exe)\n";
+    std::cout << "(pass --json instead of -o to dump the full pipeline as JSON for the visualizer)\n";
 
     // ── Demo 1: target program — everything passes ───────
     compile(
