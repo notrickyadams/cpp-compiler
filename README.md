@@ -18,7 +18,7 @@ Every error includes: where it happened, why it's a problem, how to fix it, and 
 | Optimization | Done | Constant folding, copy propagation, dead code elimination — run to a fixed point |
 | Assembly Generation | Done | IR → real 32-bit x86 AT&T assembly; tests assemble/link/run the output and check process exit codes |
 | Executable | Done | `./compiler input.cpp -o out.exe` builds a real, runnable binary via the system assembler/linker |
-| Visualizer | Next | Interactive web UI: source → tokens → AST → IR → assembly |
+| Visualizer | Done | `./compiler input.cpp --json` + a small local web UI: source → tokens → AST → IR → assembly |
 
 ---
 
@@ -79,7 +79,7 @@ assumes a 32-bit x86 MinGW target — see [Design decisions](#design-decisions).
 
 ```bash
 mingw32-make all         # builds build/compiler + every test binary
-mingw32-make run-tests   # runs all eight test suites
+mingw32-make run-tests   # runs all nine test suites
 ./build/compiler
 ```
 
@@ -94,6 +94,7 @@ g++ -std=c++14 -Wall -Wextra -Wpedantic -Isrc \
     src/diagnostics/DiagnosticCollector.cpp \
     src/lexer/Lexer.cpp \
     src/ast/ASTPrinter.cpp \
+    src/ast/ASTJsonPrinter.cpp \
     src/parser/Parser.cpp \
     src/semantic/SemanticAnalyzer.cpp \
     src/ir/IRGenerator.cpp \
@@ -118,6 +119,21 @@ compiler — quiet on success, one fully-explained diagnostic report on failure:
 ./build/sample.exe; echo $?    # -> 7
 ```
 
+### Visualizer
+
+`--json` instead of `-o` dumps the entire pipeline (tokens, AST, semantic
+log, IR before/after optimization, optimization report, assembly,
+diagnostics) as one JSON object — that's what feeds the web UI:
+
+```bash
+python visualizer/server.py     # stdlib only, no pip install
+# open http://127.0.0.1:8000 — type source, click Compile
+```
+
+The server (stdlib `http.server` + `subprocess`, zero dependencies, same
+philosophy as the C++ test framework) shells out to `build/compiler.exe
+<tempfile> --json` per request and returns the result as-is.
+
 ---
 
 ## Test results
@@ -131,14 +147,17 @@ test_ir          15/15 tests   (49  assertions)
 test_optimizer   15/15 tests   (31  assertions)
 test_codegen     17/17 tests   (32  assertions)
 test_driver       4/4  tests   (9   assertions)
+test_visualizer   9/9  tests   (29  assertions)
 ─────────────────────────────────────────────
-Total           134/134 tests  (386 assertions)   0 failures
+Total           158/158 tests  (415 assertions)   0 failures
 ```
 
-`test_codegen` and `test_driver` are the suites that shell out to the real
-toolchain: tests assemble and link generated `.s` text with `g++`, run the
-resulting `.exe`, and assert on its process exit code — proving the pipeline
-produces not just well-formed text but actually correct, runnable machine code.
+`test_codegen` and `test_driver` shell out to the real toolchain: tests
+assemble and link generated `.s` text with `g++`, run the resulting `.exe`,
+and assert on its process exit code. `test_visualizer` does the same for the
+`--json` CLI mode — it runs `build/compiler.exe <file> --json` as a real
+subprocess and checks the output, the same empirical standard rather than
+trusting the JSON-building code in isolation.
 
 ---
 
@@ -149,6 +168,8 @@ src/
   core/
     SourceSpan.hpp       precise source location (line, col, length)
     Result.hpp           Result<T, E> — explicit error handling
+    Json.hpp             jsonEscape/jsonArray/jsonStringArray — shared by
+                         every stage that feeds the visualizer's JSON export
 
   diagnostics/
     DiagnosticKind.hpp   enum of every error type
@@ -158,13 +179,15 @@ src/
     DiagnosticCollector  accumulate + render (terminal / compact / JSON)
 
   lexer/
-    Token.hpp            TokenType enum + Token struct
+    Token.hpp            TokenType enum + Token struct + toJson()
     Lexer                single-pass O(n) scanner
 
   ast/
     ASTNode.hpp          base node + ASTVisitor interface
     Nodes.hpp            all concrete node types
     ASTPrinter           visitor: pretty-print the tree
+    ASTJsonPrinter       visitor: serialize the tree to JSON for the
+                         visualizer's collapsible tree view
 
   parser/
     Parser               recursive descent, panic-mode error recovery
@@ -196,6 +219,12 @@ src/
   driver/
     Toolchain                writes the .s, shells out to g++ to assemble +
                              link a real executable, cleans up afterward
+
+visualizer/
+  server.py             stdlib-only local server: serves the frontend,
+                         shells out to compiler.exe --json for /compile
+  index.html, style.css,
+  app.js                 plain JS, no framework, no build step
 ```
 
 ---
@@ -203,6 +232,7 @@ src/
 ## Commit history
 
 ```
+feat: Stage 8 — JSON export + web visualizer
 feat: Stage 7 — executable generation via system toolchain
 feat: Stage 6 — x86 assembly generation, stack frame layout
 feat: Stage 5 — constant folding, copy propagation, DCE
@@ -237,6 +267,10 @@ feat: Stage 1 — fully working lexer with 18/18 tests
 | `Toolchain` lives in `driver/`, not `codegen/` | `AssemblyGenerator` is pure (IR in, text out — no filesystem, no subprocess, trivially unit-testable). `Toolchain` owns 100% of the "talk to the OS" responsibility instead, the same split Clang draws between `CodeGen` and `driver::Toolchain` |
 | `Toolchain::buildExecutable` returns `Result<T,E>`, not `Diagnostic` | A failure here (g++ missing, disk full) is an environment failure, not a user source error — it has no `SourceSpan` and nothing for `ExplanationBuilder` to say. `Result<T,E>` was built during the Diagnostics stage for exactly this shape but had no caller until Stage 7 |
 | `compileFile()` is separate from `compile()`, not a shared helper with a flag | `compile()` narrates every stage for the portfolio demo; `compileFile()` builds quietly like `g++ -o` does. Their output contracts differ enough that unifying them would mean threading print statements through conditionals, not removing real duplication |
+| `ASTJsonPrinter` is a 4th Visitor, not a flag on `ASTPrinter` | Same reasoning as every prior Visitor addition: adding an operation should mean one new class, zero changes to `Nodes.hpp`. Four independent Visitors now share the same node definitions untouched since Stage 2 |
+| IR/assembly serialize to JSON as one string, not a structured tree | Unlike the AST, nothing about IR or assembly benefits from being a navigable tree in the UI — they're displayed as text panels. Reusing `IRProgram::toString()`/`AssemblyProgram::toString()` avoids inventing structure nothing renders differently |
+| The visualizer backend is Python stdlib only (`http.server` + `subprocess`) | No pip install, no Node/npm build step, matching the C++ side's zero-dependency test framework. It shells out to the already-built `compiler.exe --json` rather than re-implementing the pipeline in Python |
+| Visualizer subprocess calls use `shell=False` (Python's default) | Sidesteps a real bug hit while testing: `cmd.exe` (which C++'s `system()` shells out to) parses `"build/x.exe"` as the unrelated MASM32 `build.bat` on this machine's PATH plus a flag-shaped argument. `subprocess.run([...])` without `shell=True` calls `CreateProcess` directly, bypassing `cmd.exe`'s parsing entirely |
 
 ---
 
