@@ -17,8 +17,8 @@ Every error includes: where it happened, why it's a problem, how to fix it, and 
 | IR Generation | Done | AST → flat three-address intermediate representation |
 | Optimization | Done | Constant folding, copy propagation, dead code elimination — run to a fixed point |
 | Assembly Generation | Done | IR → real 32-bit x86 AT&T assembly; tests assemble/link/run the output and check process exit codes |
-| Executable | Next | Wire the system assembler/linker into the compiler's own CLI |
-| Visualizer | — | Interactive web UI: source → tokens → AST → IR → assembly |
+| Executable | Done | `./compiler input.cpp -o out.exe` builds a real, runnable binary via the system assembler/linker |
+| Visualizer | Next | Interactive web UI: source → tokens → AST → IR → assembly |
 
 ---
 
@@ -79,7 +79,7 @@ assumes a 32-bit x86 MinGW target — see [Design decisions](#design-decisions).
 
 ```bash
 mingw32-make all         # builds build/compiler + every test binary
-mingw32-make run-tests   # runs all seven test suites
+mingw32-make run-tests   # runs all eight test suites
 ./build/compiler
 ```
 
@@ -101,9 +101,21 @@ g++ -std=c++14 -Wall -Wextra -Wpedantic -Isrc \
     src/optimizer/CopyPropagationPass.cpp \
     src/optimizer/DeadCodeEliminationPass.cpp \
     src/optimizer/Optimizer.cpp \
-    src/codegen/AssemblyGenerator.cpp
+    src/codegen/AssemblyGenerator.cpp \
+    src/driver/Toolchain.cpp
 
 ./build/compiler
+```
+
+### Compiling a real program
+
+With no arguments, `./build/compiler` runs the demo suite shown above, then
+drops into a REPL. Pass a source file instead and it behaves like a real
+compiler — quiet on success, one fully-explained diagnostic report on failure:
+
+```bash
+./build/compiler build/sample.cpp -o build/sample.exe
+./build/sample.exe; echo $?    # -> 7
 ```
 
 ---
@@ -118,14 +130,15 @@ test_semantic    22/22 tests   (45  assertions)
 test_ir          15/15 tests   (49  assertions)
 test_optimizer   15/15 tests   (31  assertions)
 test_codegen     17/17 tests   (32  assertions)
+test_driver       4/4  tests   (9   assertions)
 ─────────────────────────────────────────────
-Total           130/130 tests  (377 assertions)   0 failures
+Total           134/134 tests  (386 assertions)   0 failures
 ```
 
-`test_codegen` is the only suite that shells out to the real toolchain: several
-tests assemble and link the generated `.s` text with `g++`, run the resulting
-`.exe`, and assert on its process exit code — proving the generator emits not
-just well-formed text but actually correct, runnable machine code.
+`test_codegen` and `test_driver` are the suites that shell out to the real
+toolchain: tests assemble and link generated `.s` text with `g++`, run the
+resulting `.exe`, and assert on its process exit code — proving the pipeline
+produces not just well-formed text but actually correct, runnable machine code.
 
 ---
 
@@ -179,6 +192,10 @@ src/
                              params to caller-set cdecl offsets
     AssemblyProgram.hpp      flat vector<string> of emitted assembly lines
     AssemblyGenerator        lowers IR to 32-bit x86 AT&T assembly text
+
+  driver/
+    Toolchain                writes the .s, shells out to g++ to assemble +
+                             link a real executable, cleans up afterward
 ```
 
 ---
@@ -186,6 +203,7 @@ src/
 ## Commit history
 
 ```
+feat: Stage 7 — executable generation via system toolchain
 feat: Stage 6 — x86 assembly generation, stack frame layout
 feat: Stage 5 — constant folding, copy propagation, DCE
 feat: Stage 4 — three-address code IR generation
@@ -216,6 +234,9 @@ feat: Stage 1 — fully working lexer with 18/18 tests
 | `_main` symbol + `call ___main` for the entry point only | Empirically discovered, not assumed: this legacy MinGW.org CRT's startup expects a symbol literally `_main`; without it, linking fails with `undefined reference to WinMain@16` because the CRT falls back to looking for a GUI entry point. Validated against real `gcc -S` output before writing the generator — see `build/probe*.c/.s` |
 | Every function gets a safety-net `leave`/`ret` even with no IR `Return` | The grammar allows a body that never returns (e.g. `int f() { int x = 5; }`), and nothing upstream rejects it — C treats this as UB, not a hard error. Real compilers still emit a valid epilogue rather than falling through into the next function's bytes; this generator does the same |
 | Comparison and call-expression codegen tested via direct IR construction | The front end has no implicit bool→int conversion and no call-expression grammar at all, so source text can't express either case end-to-end. Tests build the `IRFunction` by hand instead — the same pattern `test_optimizer.cpp` already uses for pass-level unit tests |
+| `Toolchain` lives in `driver/`, not `codegen/` | `AssemblyGenerator` is pure (IR in, text out — no filesystem, no subprocess, trivially unit-testable). `Toolchain` owns 100% of the "talk to the OS" responsibility instead, the same split Clang draws between `CodeGen` and `driver::Toolchain` |
+| `Toolchain::buildExecutable` returns `Result<T,E>`, not `Diagnostic` | A failure here (g++ missing, disk full) is an environment failure, not a user source error — it has no `SourceSpan` and nothing for `ExplanationBuilder` to say. `Result<T,E>` was built during the Diagnostics stage for exactly this shape but had no caller until Stage 7 |
+| `compileFile()` is separate from `compile()`, not a shared helper with a flag | `compile()` narrates every stage for the portfolio demo; `compileFile()` builds quietly like `g++ -o` does. Their output contracts differ enough that unifying them would mean threading print statements through conditionals, not removing real duplication |
 
 ---
 
