@@ -1,6 +1,6 @@
 # cpp-compiler
 
-A C++ compiler built from scratch — not just a translator, but a **compiler designed to explain itself**.
+A C++ compiler built from scratch!! not just a translator, but a **compiler designed to explain itself**.
 
 Every error includes: where it happened, why it's a problem, how to fix it, and the compiler's internal reasoning chain. Built stage by stage with production-quality architecture, unit tests, and clean separation of concerns.
 
@@ -10,13 +10,13 @@ Every error includes: where it happened, why it's a problem, how to fix it, and 
 
 | Stage | Status | What it does |
 |---|---|---|
-| Lexer | Done | Raw source text → typed token stream |
-| Diagnostic System | Done | Structured errors with WHY / FIX / TRACE — built in from day one |
-| Parser + AST | Done | Tokens → Abstract Syntax Tree with full operator precedence |
+| Lexer | Done | Raw source text -> typed token stream |
+| Diagnostic System | Done | Structured errors with WHY / FIX / TRACE, built in from day one |
+| Parser + AST | Done | Tokens -> Abstract Syntax Tree with full operator precedence |
 | Semantic Analysis | Done | Type checking, scope resolution, symbol table |
-| IR Generation | Done | AST → flat three-address intermediate representation |
-| Optimization | Done | Constant folding, copy propagation, dead code elimination — run to a fixed point |
-| Assembly Generation | Done | IR → real 32-bit x86 AT&T assembly; tests assemble/link/run the output and check process exit codes |
+| IR Generation | Done | AST  -> flat three-address intermediate representation |
+| Optimization | Done | Constant folding, copy propagation, dead code elimination  -> run to a fixed point |
+| Assembly Generation | Done | IR  -> real 32-bit x86 AT&T assembly; tests assemble/link/run the output and check process exit codes |
 | Executable | Done | `./compiler input.cpp -o out.exe` builds a real, runnable binary via the system assembler/linker |
 | Visualizer | Done | `./compiler input.cpp --json` + a small local web UI: source → tokens → AST → IR → assembly |
 
@@ -75,7 +75,7 @@ int main() {
 ## Build
 
 **Requires:** g++ with C++14 support (GCC 6+). The codegen stage additionally
-assumes a 32-bit x86 MinGW target — see [Design decisions](#design-decisions).
+assumes a 32-bit x86 MinGW target, see [Design decisions](#design-decisions).
 
 ```bash
 mingw32-make all         # builds build/compiler + every test binary
@@ -112,7 +112,7 @@ g++ -std=c++14 -Wall -Wextra -Wpedantic -Isrc \
 
 With no arguments, `./build/compiler` runs the demo suite shown above, then
 drops into a REPL. Pass a source file instead and it behaves like a real
-compiler — quiet on success, one fully-explained diagnostic report on failure:
+compiler, quiet on success, one fully-explained diagnostic report on failure:
 
 ```bash
 ./build/compiler build/sample.cpp -o build/sample.exe
@@ -123,7 +123,7 @@ compiler — quiet on success, one fully-explained diagnostic report on failure:
 
 `--json` instead of `-o` dumps the entire pipeline (tokens, AST, semantic
 log, IR before/after optimization, optimization report, assembly,
-diagnostics) as one JSON object — that's what feeds the web UI:
+diagnostics) as one JSON object, that's what feeds the web UI:
 
 ```bash
 python visualizer/server.py     # stdlib only, no pip install
@@ -155,7 +155,7 @@ Total           158/158 tests  (415 assertions)   0 failures
 `test_codegen` and `test_driver` shell out to the real toolchain: tests
 assemble and link generated `.s` text with `g++`, run the resulting `.exe`,
 and assert on its process exit code. `test_visualizer` does the same for the
-`--json` CLI mode — it runs `build/compiler.exe <file> --json` as a real
+`--json` CLI mode, it runs `build/compiler.exe <file> --json` as a real
 subprocess and checks the output, the same empirical standard rather than
 trusting the JSON-building code in isolation.
 
@@ -167,14 +167,14 @@ trusting the JSON-building code in isolation.
 src/
   core/
     SourceSpan.hpp       precise source location (line, col, length)
-    Result.hpp           Result<T, E> — explicit error handling
-    Json.hpp             jsonEscape/jsonArray/jsonStringArray — shared by
+    Result.hpp           Result<T, E>, explicit error handling
+    Json.hpp             jsonEscape/jsonArray/jsonStringArray, shared by
                          every stage that feeds the visualizer's JSON export
 
   diagnostics/
     DiagnosticKind.hpp   enum of every error type
     Diagnostic.hpp       Diagnostic struct + StageOutput<T>
-    DiagnosticEngine     factory: context → structured Diagnostic
+    DiagnosticEngine     factory: context  -> structured Diagnostic
     ExplanationBuilder   knowledge base: kind → WHY + FIX + TRACE text
     DiagnosticCollector  accumulate + render (terminal / compact / JSON)
 
