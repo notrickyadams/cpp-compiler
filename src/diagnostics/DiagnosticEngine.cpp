@@ -68,8 +68,19 @@ Diagnostic DiagnosticEngine::invalidNumberLiteral(const std::string& lit,
     );
 }
 
+Diagnostic DiagnosticEngine::integerOutOfRange(const std::string& literal,
+                                                 SourceSpan span) const {
+    return build(
+        DiagnosticKind::LEX_IntegerOutOfRange,
+        Severity::Error,
+        span,
+        "integer literal '" + literal + "' is out of range for int",
+        literal
+    );
+}
+
 // ─────────────────────────────────────────────────────────────
-//  Parser diagnostics (stubs — wired up fully in Stage 2)
+//  Parser diagnostics
 // ─────────────────────────────────────────────────────────────
 
 Diagnostic DiagnosticEngine::unexpectedToken(const std::string& found,
@@ -110,9 +121,11 @@ Diagnostic DiagnosticEngine::invalidAssignmentTarget(const std::string& nodeType
     );
 }
 
-Diagnostic DiagnosticEngine::malformedExpression(const std::string& leftText,
+Diagnostic DiagnosticEngine::malformedExpression(const std::string& readSoFar,
+                                                   const std::string& leftText,
                                                    const std::string& strayText,
-                                                   SourceSpan span) const {
+                                                   SourceSpan span,
+                                                   const std::string& originMethod) const {
     Diagnostic d = build(
         DiagnosticKind::PARSE_MalformedExpression,
         Severity::Error,
@@ -121,15 +134,31 @@ Diagnostic DiagnosticEngine::malformedExpression(const std::string& leftText,
         leftText,
         strayText
     );
-    d.invalidExample = leftText + " " + strayText;
-    d.validExamples.push_back(leftText + " + " + strayText);
-    d.validExamples.push_back(leftText + " * " + strayText);
-    d.validExamples.push_back(leftText + " = " + strayText);
+    // This kind needs THREE pieces of context, one more than build()'s
+    // detail/detail2 can carry: the narrative wants the full statement
+    // text read so far, while the fixes/examples want just the
+    // expression. Re-derive the explanation with the statement text.
+    d.explanation = ExplanationBuilder::explain(
+        DiagnosticKind::PARSE_MalformedExpression, readSoFar, strayText);
+
+    // The static trace names parseReturnStmt; patch in the real call
+    // site so the chain stays accurate when parseVarDecl detects it.
+    if (!d.trace.empty()) d.trace.front().component = originMethod;
+
+    // '(' as the stray token would make these read as gibberish
+    // ("x + ("), so the code-comparison block is only attached when
+    // the stray is a value-like token.
+    if (strayText != "(") {
+        d.invalidExample = leftText + " " + strayText;
+        d.validExamples.push_back(leftText + " + " + strayText);
+        d.validExamples.push_back(leftText + " * " + strayText);
+        d.validExamples.push_back(leftText + " = " + strayText);
+    }
     return d;
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Semantic diagnostics (stubs — wired up fully in Stage 4)
+//  Semantic diagnostics
 // ─────────────────────────────────────────────────────────────
 
 Diagnostic DiagnosticEngine::typeMismatch(const std::string& left,
@@ -177,5 +206,30 @@ Diagnostic DiagnosticEngine::missingReturnValue(const std::string& functionName,
             "' (expected '" + expectedType + "')",
         functionName,
         expectedType
+    );
+}
+
+Diagnostic DiagnosticEngine::missingReturn(const std::string& functionName,
+                                             const std::string& returnType,
+                                             SourceSpan span) const {
+    return build(
+        DiagnosticKind::SEM_MissingReturn,
+        Severity::Warning,
+        span,
+        "function '" + functionName + "' is declared to return '" +
+            returnType + "' but never returns a value",
+        functionName,
+        returnType
+    );
+}
+
+Diagnostic DiagnosticEngine::functionUsedAsValue(const std::string& name,
+                                                   SourceSpan span) const {
+    return build(
+        DiagnosticKind::SEM_FunctionUsedAsValue,
+        Severity::Error,
+        span,
+        "'" + name + "' is a function and cannot be used as a value",
+        name
     );
 }

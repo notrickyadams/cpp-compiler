@@ -35,7 +35,12 @@ public:
     Diagnostic invalidNumberLiteral(const std::string& literal,
                                     SourceSpan span) const;
 
-    // ── Parser diagnostics (stubs — implemented in Stage 2) ──
+    // literal: the exact digit string as written (e.g. "99999999999") —
+    // lexically valid, but its value exceeds the 32-bit int range.
+    Diagnostic integerOutOfRange(const std::string& literal,
+                                  SourceSpan span) const;
+
+    // ── Parser diagnostics ────────────────────────────────
 
     Diagnostic unexpectedToken(const std::string& found,
                                 const std::string& expected,
@@ -49,14 +54,25 @@ public:
     Diagnostic invalidAssignmentTarget(const std::string& nodeType,
                                         SourceSpan span) const;
 
-    // leftText: source text of the expression already parsed (e.g. "x").
-    // strayText: lexeme of the next token, which also starts a valid
-    // expression but has no operator joining it to leftText (e.g. "2").
-    Diagnostic malformedExpression(const std::string& leftText,
+    // readSoFar:  everything the parser had successfully consumed when
+    //             the stray token appeared, as source text — statement
+    //             context included (e.g. "return x" or "int x = 5").
+    //             Shown verbatim in the WHAT HAPPENED narrative.
+    // leftText:   just the expression part (e.g. "x"), used for the
+    //             INVALID/VALID example snippets and the fix text.
+    // strayText:  lexeme of the next token, which also starts a valid
+    //             expression but has no operator joining it to leftText.
+    // originMethod: the parser method that detected it — patched into
+    //             the trace so the chain names the real call site
+    //             (parseReturnStmt vs parseVarDecl), not a fixed one.
+    Diagnostic malformedExpression(const std::string& readSoFar,
+                                    const std::string& leftText,
                                     const std::string& strayText,
-                                    SourceSpan span) const;
+                                    SourceSpan span,
+                                    const std::string& originMethod
+                                        = "Parser::parseReturnStmt()") const;
 
-    // ── Semantic diagnostics (stubs — implemented in Stage 4) ─
+    // ── Semantic diagnostics ──────────────────────────────
 
     Diagnostic typeMismatch(const std::string& leftType,
                              const std::string& rightType,
@@ -75,6 +91,20 @@ public:
     Diagnostic missingReturnValue(const std::string& functionName,
                                    const std::string& expectedType,
                                    SourceSpan span) const;
+
+    // Warning, not error: a non-void function whose body contains no
+    // return statement at all. Matches GCC's -Wreturn-type choice —
+    // C/C++ call this undefined behaviour, not ill-formed, so the
+    // build still succeeds.
+    Diagnostic missingReturn(const std::string& functionName,
+                              const std::string& returnType,
+                              SourceSpan span) const;
+
+    // A function name appearing where a value is required — read in an
+    // expression, or written as an assignment target. No call syntax
+    // or function pointers exist, so this is always an error.
+    Diagnostic functionUsedAsValue(const std::string& name,
+                                    SourceSpan span) const;
 
 private:
     // Shared assembly helper

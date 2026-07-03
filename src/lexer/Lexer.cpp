@@ -109,6 +109,21 @@ Token Lexer::lexNumber() {
     while (!isAtEnd() && std::isdigit(peek())) {
         lexeme += advance();
     }
+
+    // Range check: the digits are lexically valid, but the VALUE must
+    // fit in a 32-bit int or downstream stages would silently wrap it
+    // (and std::stoi in the parser would throw). Compare against
+    // INT_MAX textually — leading zeros are stripped first so
+    // "0000000001" isn't misjudged by its raw length.
+    std::size_t firstNonZero = lexeme.find_first_not_of('0');
+    std::string digits = (firstNonZero == std::string::npos)
+                             ? "0" : lexeme.substr(firstNonZero);
+    if (digits.size() > 10 ||
+        (digits.size() == 10 && digits > "2147483647")) {
+        pendingDiagnostics_.push_back(engine_.integerOutOfRange(
+            lexeme, SourceSpan::token(startLine, startCol, (int)lexeme.size())));
+    }
+
     return makeToken(TokenType::INTEGER_LITERAL, lexeme, startLine, startCol);
 }
 

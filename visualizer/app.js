@@ -53,12 +53,15 @@ async function compile() {
     renderPre("irAfter", data.irAfter);
     renderOptimization(data.optimizationReports);
     renderPre("assembly", data.assembly);
-    const errorCount = renderDiagnostics(data.diagnosticsReport);
+    const { errorCount, warningCount } = renderDiagnostics(data.diagnosticsReport);
 
     if (errorCount > 0) {
       statusLine.textContent = `${errorCount} error(s)`;
       statusLine.className = "status error";
       activateTab("diagnostics");
+    } else if (warningCount > 0) {
+      statusLine.textContent = `Compiled with ${warningCount} warning(s)`;
+      statusLine.className = "status ok";
     } else {
       statusLine.textContent = "Compiled OK";
       statusLine.className = "status ok";
@@ -125,8 +128,11 @@ function renderOptimization(reports) {
   panel.appendChild(pre);
 }
 
-// Returns the error count so the caller can decide whether to
-// jump to this tab and color the status line.
+// Same section structure the CLI's full render uses (ERROR TYPE /
+// LOCATION / ROOT CAUSE / WHAT HAPPENED / INVALID / VALID / HOW TO
+// FIX / TRACE) so the two surfaces tell one consistent story.
+// Returns {errorCount, warningCount} so the caller can decide whether
+// to jump to this tab and how to word the status line.
 function renderDiagnostics(report) {
   const panel = document.getElementById("panel-diagnostics");
   panel.innerHTML = "";
@@ -134,20 +140,36 @@ function renderDiagnostics(report) {
 
   if (diagnostics.length === 0) {
     panel.innerHTML = '<p class="placeholder">No diagnostics — compilation succeeded.</p>';
-    return 0;
+    return { errorCount: 0, warningCount: 0 };
   }
 
   let errorCount = 0;
+  let warningCount = 0;
   for (const d of diagnostics) {
-    if (d.severity === "error" || d.severity === "fatal") errorCount++;
+    const isError = d.severity === "error" || d.severity === "fatal";
+    if (isError) errorCount++;
+    else if (d.severity === "warning") warningCount++;
 
     const card = document.createElement("div");
     card.className = "diag";
 
-    let html = `<div class="diag-header">${escapeHtml(d.severity)}[${escapeHtml(d.kind)}]: ${escapeHtml(d.message)}</div>`;
-    html += `<div>--&gt; line ${d.span.startLine}, col ${d.span.startCol}</div>`;
+    // JSON carries the machine-readable kind ("MalformedExpression");
+    // space it out for display the same way the CLI's display name does.
+    const displayKind = String(d.kind).replace(/([a-z])([A-Z])/g, "$1 $2");
+    const typeLabel = d.severity === "warning" ? "WARNING TYPE"
+                    : d.severity === "note"    ? "NOTE TYPE" : "ERROR TYPE";
+
+    let html = `<div class="diag-header${isError ? "" : " diag-warning"}">${typeLabel}: ${escapeHtml(displayKind)}</div>`;
+    html += `<div>line ${d.span.startLine}, column ${d.span.startCol}</div>`;
     html += `<h4>Root cause</h4><p>${escapeHtml(d.rootCause)}</p>`;
-    html += `<h4>Why this happened</h4><p>${escapeHtml(d.explanation).replace(/\n/g, "<br>")}</p>`;
+    html += `<h4>What happened</h4><p>${escapeHtml(d.explanation).replace(/\n/g, "<br>")}</p>`;
+
+    if (d.invalidExample) {
+      html += `<h4>Invalid</h4><pre class="diag-example">${escapeHtml(d.invalidExample)}</pre>`;
+    }
+    if (d.validExamples && d.validExamples.length) {
+      html += `<h4>Valid</h4><pre class="diag-example">${escapeHtml(d.validExamples.join("\n"))}</pre>`;
+    }
 
     if (d.fixes && d.fixes.length) {
       html += `<h4>How to fix</h4><ol>`;
@@ -156,17 +178,17 @@ function renderDiagnostics(report) {
     }
 
     if (d.trace && d.trace.length) {
-      html += `<h4>Internal trace</h4>`;
+      html += `<h4>Trace</h4>`;
+      if (d.stage) html += `<div class="trace-step">${escapeHtml(d.stage)}</div>`;
       for (const step of d.trace) {
-        const cls = step.ok ? "trace-step" : "trace-fail";
-        html += `<div class="${cls}">[${step.ok ? "ok" : "FAIL"}] ${escapeHtml(step.component)}</div>`;
+        html += `<div class="trace-step">→ ${escapeHtml(step.component)}</div>`;
       }
     }
 
     card.innerHTML = html;
     panel.appendChild(card);
   }
-  return errorCount;
+  return { errorCount, warningCount };
 }
 
 // ── AST tree (collapsible, via native <details>/<summary>) ───

@@ -280,6 +280,61 @@ TEST("return: bare 'return;' message names the function and its return type", []
     ASSERT_TRUE(r.sem.diagnostics[0].message.find("int")     != std::string::npos);
 });
 
+// ── Missing return (warning, not error) ──────────────────────────
+// (production review: "int main() { int x = 5; }" compiled silently
+// and returned register garbage at runtime — GCC warns here.)
+
+TEST("return: function with no return at all gets SEM_MissingReturn warning", [](){
+    auto r = run("int main() { int x = 5; }");
+    ASSERT_TRUE(!r.sem.hasErrors());                 // warning, build continues
+    ASSERT_EQ((int)r.sem.diagnostics.size(), 1);
+    ASSERT_EQ(r.sem.diagnostics[0].kind, DiagnosticKind::SEM_MissingReturn);
+    ASSERT_TRUE(r.sem.diagnostics[0].severity == Severity::Warning);
+    ASSERT_TRUE(r.sem.output);                       // "true means no errors"
+});
+
+TEST("return: function that does return produces no missing-return warning", [](){
+    auto r = run("int main() { return 0; }");
+    ASSERT_EQ((int)r.sem.diagnostics.size(), 0);
+});
+
+// ── Function names used as values ────────────────────────────────
+// (production review: "return main;" and "main = 5;" both compiled
+// silently into reads/writes of an uninitialised stack slot.)
+
+TEST("functions: reading a function name as a value is an error", [](){
+    auto r = run("int main() { return main; }");
+    ASSERT_TRUE(r.sem.hasErrors());
+    ASSERT_EQ(r.sem.diagnostics[0].kind, DiagnosticKind::SEM_FunctionUsedAsValue);
+});
+
+TEST("functions: assigning into a function name is an error", [](){
+    auto r = run("int main() { return main = 5; }");
+    ASSERT_TRUE(r.sem.hasErrors());
+    ASSERT_EQ(r.sem.diagnostics[0].kind, DiagnosticKind::SEM_FunctionUsedAsValue);
+});
+
+// ── Parameters share the function's outermost scope ─────────────
+// (production review: "int f(int a) { int a; }" silently shadowed the
+// parameter — C++ rejects this, and both names would have lowered to
+// the same IR Var and stack slot.)
+
+TEST("params: local redeclaring a parameter name is a redeclaration error", [](){
+    auto r = run("int f(int a) { int a = 9; return a; }");
+    ASSERT_TRUE(r.sem.hasErrors());
+    ASSERT_EQ(r.sem.diagnostics[0].kind, DiagnosticKind::SEM_RedeclaredVariable);
+});
+
+TEST("redecl: the duplicate's initializer is still analysed for its own errors", [](){
+    // 'y' is undeclared inside the redeclared x's initializer — both
+    // problems must be reported, not just the redeclaration.
+    auto r = run("int f() { int x = 5; int x = y; return x; }");
+    ASSERT_TRUE(r.sem.hasErrors());
+    ASSERT_EQ((int)r.sem.diagnostics.size(), 2);
+    ASSERT_EQ(r.sem.diagnostics[0].kind, DiagnosticKind::SEM_RedeclaredVariable);
+    ASSERT_EQ(r.sem.diagnostics[1].kind, DiagnosticKind::SEM_UndeclaredIdentifier);
+});
+
 int main() {
     std::cout << "=== Semantic Analysis Unit Tests ===\n\n";
     return RUN_ALL_TESTS();

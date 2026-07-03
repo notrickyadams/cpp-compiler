@@ -115,6 +115,33 @@ TEST("ConstantFolding: skips divide-by-zero, leaves it unfolded", [](){
     ASSERT_EQ(fn.instructions[0].toString(), std::string("t0 = 5 / 0"));
 });
 
+TEST("ConstantFolding: refuses to fold a result that overflows int", [](){
+    // INT_MAX + 1 would wrap; folding it would bake one particular
+    // wrapped value into the binary AND be signed-overflow UB inside
+    // the compiler itself. It must stay unfolded.
+    IRFunction fn;
+    fn.instructions.push_back(IRInstruction::makeBinary(
+        IROp::Add, IRValue::makeTemp(0),
+        IRValue::makeConst(2147483647), IRValue::makeConst(1)));
+
+    ConstantFoldingPass pass;
+    bool changed = pass.run(fn);
+
+    ASSERT_TRUE(!changed);
+    ASSERT_EQ(fn.instructions[0].toString(), std::string("t0 = 2147483647 + 1"));
+});
+
+TEST("ConstantFolding: in-range results near the boundary still fold", [](){
+    IRFunction fn;
+    fn.instructions.push_back(IRInstruction::makeBinary(
+        IROp::Add, IRValue::makeTemp(0),
+        IRValue::makeConst(2147483646), IRValue::makeConst(1)));
+
+    ConstantFoldingPass pass;
+    ASSERT_TRUE(pass.run(fn));
+    ASSERT_EQ(fn.instructions[0].toString(), std::string("t0 = 2147483647"));
+});
+
 TEST("ConstantFolding: comparison operators fold to 0/1", [](){
     IRFunction fn;
     fn.instructions.push_back(IRInstruction::makeBinary(
@@ -153,6 +180,25 @@ TEST("CopyPropagation: never substitutes a named variable", [](){
 
     ASSERT_TRUE(!changed);
     ASSERT_EQ(fn.instructions[1].toString(), std::string("t0 = x + 2"));
+});
+
+TEST("CopyPropagation: a Var SOURCE copied into a temp is not propagated", [](){
+    // Soundness guard: "t0 = x" must not be remembered, because x could
+    // be reassigned between the copy and t0's use — substituting the
+    // NEW x where the OLD value was captured would be wrong code.
+    IRFunction fn;
+    fn.instructions.push_back(IRInstruction::makeCopy(
+        IRValue::makeTemp(0), IRValue::makeVar("x")));      // t0 = x
+    fn.instructions.push_back(IRInstruction::makeCopy(
+        IRValue::makeVar("x"), IRValue::makeConst(2)));     // x = 2
+    fn.instructions.push_back(IRInstruction::makeReturn(
+        IRValue::makeTemp(0)));                             // return t0
+
+    CopyPropagationPass pass;
+    bool changed = pass.run(fn);
+
+    ASSERT_TRUE(!changed);
+    ASSERT_EQ(fn.instructions[2].toString(), std::string("return t0"));
 });
 
 TEST("CopyPropagation: resolves a chain of temp copies in a single pass", [](){

@@ -57,7 +57,10 @@ std::string DiagnosticCollector::extractLine(const std::string& source,
     for (std::size_t i = 0; i < source.size(); ++i) {
         if (line == lineNum) {
             if (source[i] == '\n') break;
-            result += source[i];
+            // Tabs render as one space: the lexer counts a tab as ONE
+            // column, so displaying it at terminal tab width (usually 8)
+            // would push the caret line out of alignment with the code.
+            result += (source[i] == '\t') ? ' ' : source[i];
         }
         if (source[i] == '\n') ++line;
     }
@@ -159,7 +162,12 @@ void DiagnosticCollector::renderOne(std::ostream& out,
     out << sep << "\n";
 
     // ── ERROR TYPE ───────────────────────────────────────
-    out << "ERROR TYPE:\n" << diagnosticKindDisplayName(d.kind) << "\n\n";
+    // The label follows the severity — printing "ERROR TYPE:" over a
+    // warning would misstate what the compiler actually decided.
+    const std::string typeLabel =
+        (d.severity == Severity::Warning) ? "WARNING TYPE:" :
+        (d.severity == Severity::Note)    ? "NOTE TYPE:"    : "ERROR TYPE:";
+    out << typeLabel << "\n" << diagnosticKindDisplayName(d.kind) << "\n\n";
 
     // ── LOCATION (+ source extract/caret) ─────────────────
     out << "LOCATION:\n";
@@ -245,6 +253,7 @@ void DiagnosticCollector::renderJson(std::ostream& out,
         const auto& d = diagnostics_[i];
         out << "    {\n";
         out << "      \"kind\": \""     << jsonEscape(diagnosticKindName(d.kind)) << "\",\n";
+        out << "      \"stage\": \""    << jsonEscape(diagnosticStage(d.kind))    << "\",\n";
         out << "      \"severity\": \"" << jsonEscape(severityName(d.severity))   << "\",\n";
         out << "      \"span\": { \"startLine\": " << d.span.startLine
             << ", \"startCol\": " << d.span.startCol

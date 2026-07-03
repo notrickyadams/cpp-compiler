@@ -433,6 +433,45 @@ TEST("malformed: return x + 2 is unaffected (operator present, no false positive
     ASSERT_TRUE(!out.hasErrors());
 });
 
+TEST("malformed: int x = 5 5; produces exactly one diagnostic, no cascade", [](){
+    auto out = parseSource("int main() { int x = 5 5; return x; }");
+    ASSERT_TRUE(out.hasErrors());
+    ASSERT_EQ((int)out.diagnostics.size(), 1);
+    ASSERT_EQ(out.diagnostics[0].kind, DiagnosticKind::PARSE_MalformedExpression);
+    // The narrative names the var-decl statement, not "return"
+    ASSERT_TRUE(out.diagnostics[0].explanation.find("int x = 5") != std::string::npos);
+    // And the trace names the method that actually detected it
+    ASSERT_EQ(out.diagnostics[0].trace.front().component,
+              std::string("Parser::parseVarDecl()"));
+});
+
+TEST("malformed: multiple stray tokens (return x 2 + 3;) still one diagnostic", [](){
+    auto out = parseSource("int main() { int x=1; return x 2 + 3; }");
+    ASSERT_TRUE(out.hasErrors());
+    ASSERT_EQ((int)out.diagnostics.size(), 1);
+    ASSERT_EQ(out.diagnostics[0].kind, DiagnosticKind::PARSE_MalformedExpression);
+});
+
+TEST("malformed: var-decl recovery still parses the following statement", [](){
+    auto out = parseSource(
+        "int main() {\n"
+        "    int x = 5 5;\n"
+        "    return 9;\n"
+        "}\n");
+    ASSERT_TRUE(out.hasErrors());
+    ASSERT_EQ((int)out.output->functions[0]->body->statements.size(), 2);
+});
+
+TEST("robustness: out-of-range literal does not crash the parser", [](){
+    // The lexer diagnoses LEX_IntegerOutOfRange; the parser must not
+    // throw (std::stoi previously terminated the whole compiler here).
+    Lexer lexer("int main() { return 99999999999; }");
+    auto lexOut = lexer.tokenize();
+    Parser parser(lexOut.output);
+    auto out = parser.parse();          // must not crash
+    ASSERT_TRUE(out.output != nullptr); // clamped literal, tree intact
+});
+
 int main() {
     std::cout << "=== Parser Unit Tests ===\n\n";
     return RUN_ALL_TESTS();

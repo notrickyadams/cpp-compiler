@@ -49,14 +49,14 @@ void AssemblyGenerator::generateFunction(const IRFunction& fn, AssemblyProgram& 
         generateInstruction(instr, layout, out);
     }
 
-    // The grammar allows a body with no return statement on some
-    // (or all) paths — e.g. "int f() { int x = 5; }" — and nothing
-    // upstream rejects it (semantic analysis only checks the TYPE of
-    // a return that exists, never that one exists). C itself treats
-    // this as undefined behaviour, not a hard error, so real
-    // compilers still emit a valid epilogue rather than letting
-    // control fall through into whatever bytes follow in memory.
-    // We do the same: guarantee every function ends in leave/ret.
+    // The grammar allows a body with no return statement — e.g.
+    // "int f() { int x = 5; }". Semantic analysis WARNS about it
+    // (SEM_MissingReturn, mirroring GCC's -Wreturn-type) but does not
+    // reject it: C treats it as undefined behaviour, not a hard error,
+    // so the build still reaches codegen. Real compilers still emit a
+    // valid epilogue rather than letting control fall through into
+    // whatever bytes follow in memory. We do the same: guarantee every
+    // function ends in leave/ret.
     if (fn.instructions.empty() || fn.instructions.back().op != IROp::Return) {
         out.emit(emitOp("leave", ""));
         out.emit(emitOp("ret", ""));

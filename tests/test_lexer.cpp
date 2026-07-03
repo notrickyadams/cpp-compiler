@@ -194,6 +194,39 @@ TEST("error: unterminated block comment diagnosed", [](){
               DiagnosticKind::LEX_UnterminatedBlockComment);
 });
 
+TEST("error: integer literal past INT_MAX diagnosed as out of range", [](){
+    Lexer lexer("int x = 99999999999;");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(result.hasErrors());
+    ASSERT_EQ(result.diagnostics[0].kind,
+              DiagnosticKind::LEX_IntegerOutOfRange);
+    // The token itself is still produced so the parser can continue
+    bool foundLiteral = false;
+    for (auto& t : result.output)
+        if (t.type == TokenType::INTEGER_LITERAL) foundLiteral = true;
+    ASSERT_TRUE(foundLiteral);
+});
+
+TEST("integer range: 2147483647 (exactly INT_MAX) is accepted", [](){
+    Lexer lexer("int x = 2147483647;");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(!result.hasErrors());
+});
+
+TEST("integer range: 2147483648 (INT_MAX + 1) is rejected", [](){
+    Lexer lexer("int x = 2147483648;");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(result.hasErrors());
+    ASSERT_EQ(result.diagnostics[0].kind, DiagnosticKind::LEX_IntegerOutOfRange);
+});
+
+TEST("integer range: leading zeros don't fool the length check", [](){
+    // 19 characters long, but the VALUE is 5 — must be accepted
+    Lexer lexer("int x = 0000000000000000005;");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(!result.hasErrors());
+});
+
 // ── Diagnostic metadata quality ──────────────────────────────
 TEST("diagnostic: message is non-empty", [](){
     Lexer lexer("@");

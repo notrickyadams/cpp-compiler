@@ -86,6 +86,11 @@ private:
 
     // ── Error recovery ────────────────────────────────────
     void synchronize();
+    // After a malformed-expression diagnostic: consume the stray
+    // tokens up to (not including) the statement boundary, so the
+    // caller's expect(SEMICOLON) sees the ';' instead of re-failing
+    // on leftovers like the "+ 3" in "return x 2 + 3;".
+    void skipStrayExpressionTokens();
     void emitError(const std::string& message, SourceSpan span);
 
     // ── State ─────────────────────────────────────────────

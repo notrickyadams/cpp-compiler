@@ -181,6 +181,20 @@ std::unique_ptr<VarDeclNode> Parser::parseVarDecl() {
 
     if (match(TokenType::ASSIGN)) {
         node->initializer = parseExpression();
+
+        // Same two-values-no-operator shape parseReturnStmt() detects:
+        // "int x = 5 5;" — without this, the generic expect(SEMICOLON)
+        // failure below leaves the stray token unconsumed and the block
+        // loop re-diagnoses it, cascading 2 diagnostics for 1 mistake.
+        if (!check(TokenType::SEMICOLON) && isExpressionStart(current().type)) {
+            SourceSpan  straySpan = current().span();
+            std::string leftText  = exprToSourceText(*node->initializer);
+            std::string strayText = current().lexeme;
+            diagnostics_.push_back(engine_.malformedExpression(
+                "int " + node->name + " = " + leftText, leftText, strayText,
+                straySpan, "Parser::parseVarDecl()"));
+            skipStrayExpressionTokens();
+        }
     }
 
     Token semi     = expect(TokenType::SEMICOLON, "';' after variable declaration");
@@ -217,9 +231,10 @@ std::unique_ptr<ReturnStmtNode> Parser::parseReturnStmt() {
             SourceSpan  straySpan = current().span();
             std::string leftText  = exprToSourceText(*node->value);
             std::string strayText = current().lexeme;
-            diagnostics_.push_back(
-                engine_.malformedExpression(leftText, strayText, straySpan));
-            advance();  // consume the stray token so expect(SEMICOLON) below succeeds
+            diagnostics_.push_back(engine_.malformedExpression(
+                "return " + leftText, leftText, strayText, straySpan,
+                "Parser::parseReturnStmt()"));
+            skipStrayExpressionTokens();
         }
     }
 
@@ -377,7 +392,18 @@ std::unique_ptr<ASTNode> Parser::parsePrimary() {
         Token tok = advance();
         auto  node  = std::make_unique<IntLiteralNode>();
         node->span  = tok.span();
-        node->value = std::stoi(tok.lexeme);
+        // NOT std::stoi: stoi throws std::out_of_range on values past
+        // INT_MAX, which would crash the whole compiler on input like
+        // "return 99999999999;". The lexer has already diagnosed
+        // out-of-range literals (LEX_IntegerOutOfRange); this clamp
+        // only keeps the parser crash-proof when it's driven directly
+        // on unvalidated tokens, as the unit tests do.
+        long long v = 0;
+        for (char ch : tok.lexeme) {
+            v = v * 10 + (ch - '0');
+            if (v > 2147483647LL) { v = 2147483647LL; break; }
+        }
+        node->value = (int)v;
         return node;
     }
 
@@ -500,6 +526,21 @@ void Parser::synchronize() {
         if (check(TokenType::RBRACE))    { advance(); return; }
         // A type keyword or 'return' starts a new statement
         if (isTypeName() || check(TokenType::KW_RETURN)) return;
+        advance();
+    }
+}
+
+// Stops at (without consuming) anything that can legitimately end or
+// begin a statement — ';', '}', a type keyword, or 'return' — the same
+// boundaries synchronize() uses. Unlike synchronize() it does NOT eat
+// the ';': the caller's expect(SEMICOLON) should consume it normally
+// so the statement's span still ends at the real semicolon.
+void Parser::skipStrayExpressionTokens() {
+    while (!isAtEnd() &&
+           !check(TokenType::SEMICOLON) &&
+           !check(TokenType::RBRACE) &&
+           !check(TokenType::KW_RETURN) &&
+           !isTypeName()) {
         advance();
     }
 }

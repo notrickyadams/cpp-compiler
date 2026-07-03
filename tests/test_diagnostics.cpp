@@ -180,22 +180,33 @@ TEST("collector: JSON output contains UnexpectedCharacter kind", [](){
 TEST("engine: malformedExpression fills invalidExample/validExamples", [](){
     DiagnosticEngine engine;
     SourceSpan span = SourceSpan::point(3, 15);
-    Diagnostic d = engine.malformedExpression("x", "2", span);
+    Diagnostic d = engine.malformedExpression("return x", "x", "2", span);
 
     ASSERT_EQ(d.kind, DiagnosticKind::PARSE_MalformedExpression);
     ASSERT_EQ(d.invalidExample, std::string("x 2"));
     ASSERT_EQ((int)d.validExamples.size(), 3);
     ASSERT_TRUE(!d.rootCause.empty());
-    ASSERT_TRUE(!d.explanation.empty());
+    // The narrative shows the full statement context, not just the expr
+    ASSERT_TRUE(d.explanation.find("return x") != std::string::npos);
     ASSERT_TRUE(!d.fixes.empty());
     ASSERT_TRUE(!d.trace.empty());
+});
+
+TEST("engine: malformedExpression trace names the real detecting method", [](){
+    DiagnosticEngine engine;
+    SourceSpan span = SourceSpan::point(1, 1);
+    Diagnostic d = engine.malformedExpression("int x = 5", "5", "5", span,
+                                              "Parser::parseVarDecl()");
+    ASSERT_TRUE(!d.trace.empty());
+    ASSERT_EQ(d.trace.front().component, std::string("Parser::parseVarDecl()"));
+    ASSERT_TRUE(d.explanation.find("int x = 5") != std::string::npos);
 });
 
 TEST("collector: render shows INVALID/VALID only when example is populated", [](){
     DiagnosticEngine engine;
 
     DiagnosticCollector withExample;
-    withExample.add(engine.malformedExpression("x", "2", SourceSpan::point(1, 9)));
+    withExample.add(engine.malformedExpression("return x", "x", "2", SourceSpan::point(1, 9)));
     std::ostringstream oss1;
     withExample.render(oss1, "");
     std::string out1 = oss1.str();
@@ -216,7 +227,7 @@ TEST("collector: render shows INVALID/VALID only when example is populated", [](
 TEST("collector: TRACE section is an arrow chain starting with the stage name", [](){
     DiagnosticEngine engine;
     DiagnosticCollector collector;
-    collector.add(engine.malformedExpression("x", "2", SourceSpan::point(1, 9)));
+    collector.add(engine.malformedExpression("return x", "x", "2", SourceSpan::point(1, 9)));
 
     std::ostringstream oss;
     collector.render(oss, "");
@@ -224,6 +235,20 @@ TEST("collector: TRACE section is an arrow chain starting with the stage name", 
 
     ASSERT_TRUE(out.find("TRACE:\nParser\n") != std::string::npos);
     ASSERT_TRUE(out.find("\xE2\x86\x92 Parser::parseReturnStmt()") != std::string::npos);
+});
+
+TEST("collector: warning severity renders WARNING TYPE header, not ERROR TYPE", [](){
+    DiagnosticEngine engine;
+    DiagnosticCollector collector;
+    collector.add(engine.missingReturn("f", "int", SourceSpan::point(1, 1)));
+
+    std::ostringstream oss;
+    collector.render(oss, "");
+    std::string out = oss.str();
+
+    ASSERT_TRUE(out.find("WARNING TYPE:\nMissing Return") != std::string::npos);
+    ASSERT_TRUE(out.find("ERROR TYPE:") == std::string::npos);
+    ASSERT_TRUE(out.find("1 warning(s)") != std::string::npos);
 });
 
 // ── SourceSpan helpers ───────────────────────────────────────

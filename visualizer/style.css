@@ -174,7 +174,15 @@ main {
   background: rgba(247, 118, 142, 0.08);
 }
 .diag-header { color: var(--red); font-weight: 600; margin-bottom: 8px; }
+.diag-header.diag-warning { color: var(--yellow); }
 .diag h4 { margin: 10px 0 4px; color: var(--muted); font-size: 12px; text-transform: uppercase; }
 .diag p, .diag ol { margin: 4px 0; }
-.diag .trace-step { color: var(--muted); }
-.diag .trace-fail  { color: var(--red); }
+.diag .trace-step { color: var(--muted); font-family: var(--mono); font-size: 13px; }
+.diag .diag-example {
+  margin: 4px 0;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 13px;
+}

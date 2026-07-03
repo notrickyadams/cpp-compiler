@@ -101,17 +101,17 @@ Stdlib-only Python (`http.server` + `subprocess`, no pip install) shelling out t
 ## tests
 
 ```
-test_lexer        25/25   (79  assertions)
-test_diagnostics  18/18   (73  assertions)
-test_parser       32/32   (127 assertions)
-test_semantic     28/28   (61  assertions)
+test_lexer        29/29   (86  assertions)
+test_diagnostics  20/20   (79  assertions)
+test_parser       36/36   (138 assertions)
+test_semantic     34/34   (77  assertions)
 test_ir           18/18   (61  assertions)
-test_optimizer    15/15   (31  assertions)
+test_optimizer    18/18   (37  assertions)
 test_codegen      19/19   (34  assertions)
 test_driver        4/4    (9   assertions)
 test_visualizer    9/9    (29  assertions)
                  ───────────────────────
-                 168/168  (504 assertions)   0 failures
+                 187/187  (550 assertions)   0 failures
 ```
 
 `test_codegen`, `test_driver`, and `test_visualizer` don't mock anything: they shell out to real `g++`, assemble and link actual `.s` files, run the resulting `.exe`, and check its process exit code. If generated assembly is wrong, these fail because a real binary does the wrong thing, not because some abstraction disagreed with itself.

@@ -8,6 +8,11 @@ std::string ExplanationBuilder::rootCause(DiagnosticKind kind,
                                            const std::string& detail2) {
     switch (kind) {
         case DiagnosticKind::LEX_UnexpectedCharacter:
+            // '!' is special: it IS the start of a valid token ('!='),
+            // so the generic "not the start of any valid token" text
+            // would be factually wrong for it.
+            if (detail == "!")
+                return "'!' is only valid as the start of '!=' — there is no bare '!' operator in this language";
             return "'" + detail + "' is not the start of any valid token";
 
         case DiagnosticKind::LEX_UnterminatedBlockComment:
@@ -18,6 +23,9 @@ std::string ExplanationBuilder::rootCause(DiagnosticKind kind,
 
         case DiagnosticKind::LEX_InvalidNumberLiteral:
             return "numeric literal '" + detail + "' has invalid syntax";
+
+        case DiagnosticKind::LEX_IntegerOutOfRange:
+            return "integer literal '" + detail + "' does not fit in a 32-bit int";
 
         case DiagnosticKind::PARSE_UnexpectedToken:
             // 'detail' here is the pre-formatted FOUND token description
@@ -60,6 +68,14 @@ std::string ExplanationBuilder::rootCause(DiagnosticKind kind,
 
         case DiagnosticKind::SEM_VoidReturn:
             return "void function cannot return a value";
+
+        case DiagnosticKind::SEM_MissingReturn:
+            // detail = function name, detail2 = its declared return type
+            return "'" + detail + "' is declared to return '" + detail2 +
+                   "' but contains no return statement";
+
+        case DiagnosticKind::SEM_FunctionUsedAsValue:
+            return "'" + detail + "' is a function, not a variable";
 
         default:
             return "unknown error";
@@ -107,6 +123,15 @@ std::string ExplanationBuilder::explain(DiagnosticKind kind,
                 "For example, '0x' starts a hex literal but requires at least one "
                 "hex digit [0-9a-fA-F] after it.";
 
+        case DiagnosticKind::LEX_IntegerOutOfRange:
+            return
+                "The literal '" + detail + "' is written correctly, but its value "
+                "exceeds what a 32-bit signed int can hold.\n"
+                "This language's only type is int, whose range is "
+                "-2147483648 to 2147483647.\n"
+                "The lexer checks this bound so the value never silently wraps "
+                "around to a different number at runtime.";
+
         case DiagnosticKind::PARSE_UnexpectedToken:
             return
                 "The parser was reading a grammar rule that requires a specific "
@@ -138,12 +163,16 @@ std::string ExplanationBuilder::explain(DiagnosticKind kind,
                 "to write into.";
 
         case DiagnosticKind::PARSE_MalformedExpression:
+            // detail = everything the parser had successfully read when
+            // the stray token appeared (e.g. "return x" or "int x = 5"),
+            // NOT just the expression — this narrative works for any
+            // statement context. detail2 = the stray token's lexeme.
             return
                 "The parser successfully read:\n"
                 "\n"
-                "return " + detail + "\n"
+                + detail + "\n"
                 "\n"
-                "After completing the return expression,\n"
+                "After completing that expression,\n"
                 "it encountered another value:\n"
                 "\n"
                 + detail2 + "\n"
@@ -184,6 +213,26 @@ std::string ExplanationBuilder::explain(DiagnosticKind kind,
                 "return register, so the caller would read whatever happened to "
                 "already be there — not a value your program computed.";
 
+        case DiagnosticKind::SEM_MissingReturn:
+            return
+                "'" + detail + "' is declared to return '" + detail2 + "', but no "
+                "statement in its body ever returns a value.\n"
+                "The generated code still ends with a valid function epilogue, "
+                "so nothing crashes — but the return register is never written, "
+                "and the caller receives whatever garbage was already in it.\n"
+                "C and C++ treat this as undefined behaviour rather than a hard "
+                "error, which is why this is a warning and the build still "
+                "succeeds — the same choice GCC makes with -Wreturn-type.";
+
+        case DiagnosticKind::SEM_FunctionUsedAsValue:
+            return
+                "'" + detail + "' names a function, and this language has no "
+                "function pointers and no call syntax yet — so a function name "
+                "cannot appear inside an expression at all.\n"
+                "Reading it would not produce a meaningful value, and assigning "
+                "to it would overwrite nothing sensible; both would compile "
+                "into reads/writes of a stack slot that nothing initialises.";
+
         default:
             return "An error occurred in the " +
                    diagnosticStage(kind) + " stage.";
@@ -201,9 +250,19 @@ ExplanationBuilder::fixes(DiagnosticKind kind,
 
     switch (kind) {
         case DiagnosticKind::LEX_UnexpectedCharacter:
+            if (detail == "!") {
+                out.push_back({ "If you meant 'not equal', write '!=' " });
+                out.push_back({ "Otherwise remove the '!' — there is no logical-not operator yet" });
+                break;
+            }
             out.push_back({ "Remove the '" + detail + "' character" });
             out.push_back({ "If you meant an identifier, start it with a letter or underscore" });
             out.push_back({ "Check for a copy-paste artefact (e.g. a Unicode quote instead of ASCII)" });
+            break;
+
+        case DiagnosticKind::LEX_IntegerOutOfRange:
+            out.push_back({ "Use a value between -2147483648 and 2147483647" });
+            out.push_back({ "If the digit count is a typo, remove the extra digits" });
             break;
 
         case DiagnosticKind::LEX_UnterminatedBlockComment:
@@ -262,6 +321,16 @@ ExplanationBuilder::fixes(DiagnosticKind kind,
         case DiagnosticKind::SEM_ReturnTypeMismatch:
             out.push_back({ "Provide a value: return <" + detail2 + " expression>;" });
             out.push_back({ "Change '" + detail + "'s return type to 'void' if no value should be returned" });
+            break;
+
+        case DiagnosticKind::SEM_MissingReturn:
+            out.push_back({ "Add a return statement: return <" + detail2 + " expression>;" });
+            out.push_back({ "If '" + detail + "' should not return a value, its return type should be 'void'" });
+            break;
+
+        case DiagnosticKind::SEM_FunctionUsedAsValue:
+            out.push_back({ "Use a variable here instead of the function name '" + detail + "'" });
+            out.push_back({ "If you meant to call it, note that call expressions are not supported yet" });
             break;
 
         default:
@@ -337,6 +406,30 @@ ExplanationBuilder::trace(DiagnosticKind kind) {
             t.push_back({ "SemanticAnalysis", "SemanticAnalyzer::visit(ReturnStmtNode&)", "return statement has no value",  true  });
             t.push_back({ "SemanticAnalysis", "Type::isVoid()",                          "declared return type is not void", false });
             t.push_back({ "SemanticAnalysis", "DiagnosticEngine::missingReturnValue()",  "diagnostic created",               false });
+            break;
+
+        case DiagnosticKind::SEM_RedeclaredVariable:
+            t.push_back({ "SemanticAnalysis", "SemanticAnalyzer::visit(VarDeclNode&)", "declaring a new variable",        true  });
+            t.push_back({ "SemanticAnalysis", "SymbolTable::lookupCurrentScope()",     "name already exists in this scope", false });
+            t.push_back({ "SemanticAnalysis", "DiagnosticEngine::redeclaredVariable()", "diagnostic created",              false });
+            break;
+
+        case DiagnosticKind::LEX_IntegerOutOfRange:
+            t.push_back({ "Lexer", "Lexer::tokenize()",   "entry point — begin scanning",       true  });
+            t.push_back({ "Lexer", "Lexer::lexNumber()",  "digits scanned, value exceeds int",  false });
+            t.push_back({ "Lexer", "DiagnosticEngine::integerOutOfRange()", "diagnostic created", false });
+            break;
+
+        case DiagnosticKind::SEM_MissingReturn:
+            t.push_back({ "SemanticAnalysis", "SemanticAnalyzer::visit(FunctionDeclNode&)", "function body fully analysed",   true  });
+            t.push_back({ "SemanticAnalysis", "SemanticAnalyzer::visit(FunctionDeclNode&)", "no ReturnStmt found in the body", false });
+            t.push_back({ "SemanticAnalysis", "DiagnosticEngine::missingReturn()",          "diagnostic created",              false });
+            break;
+
+        case DiagnosticKind::SEM_FunctionUsedAsValue:
+            t.push_back({ "SemanticAnalysis", "SymbolTable::lookup()",                  "name resolved to a symbol",       true  });
+            t.push_back({ "SemanticAnalysis", "Symbol::isFunction",                     "symbol is a function, not a variable", false });
+            t.push_back({ "SemanticAnalysis", "DiagnosticEngine::functionUsedAsValue()", "diagnostic created",              false });
             break;
 
         default:

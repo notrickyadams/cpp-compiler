@@ -7,8 +7,10 @@ StageOutput<bool> SemanticAnalyzer::analyze(ProgramNode& program) {
     program.accept(*this);
 
     StageOutput<bool> out;
-    out.output      = diagnostics_.empty();
     out.diagnostics = std::move(diagnostics_);
+    // "true means no errors" (see header) — warnings don't count, or a
+    // mere -Wreturn-type-style warning would falsely read as failure.
+    out.output      = !out.hasErrors();
     return out;
 }
 
@@ -34,12 +36,20 @@ void SemanticAnalyzer::visit(ProgramNode& n) {
 
 // ────────────────────────────────────────────────────────────
 //  FunctionDecl — push param scope, analyse body
+//
+//  The body's statements are analysed IN the parameter scope,
+//  not in a nested one: C++ places parameters in the function's
+//  outermost block scope, which is what makes
+//  "int f(int a) { int a; }" a redeclaration error rather than
+//  silent shadowing. (Silent shadowing here would be worse than
+//  cosmetic — both names would lower to the same IR Var and
+//  share one stack slot.)
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(FunctionDeclNode& n) {
     currentFunctionName_       = n.name;
     currentFunctionReturnType_ = typeFromName(n.returnType);
 
-    symbols_.pushScope();  // parameter scope
+    symbols_.pushScope();  // parameter + body scope (see above)
 
     for (auto& p : n.params) {
         Symbol sym;
@@ -50,13 +60,41 @@ void SemanticAnalyzer::visit(FunctionDeclNode& n) {
         logOk("param " + p.name + " declared (" + sym.type.name() + ")");
     }
 
-    if (n.body) n.body->accept(*this);
+    if (n.body) {
+        for (auto& stmt : n.body->statements) stmt->accept(*this);
+    }
+
+    // With no control flow in the language, "contains no ReturnStmt"
+    // is exactly "never returns" — no reachability analysis needed
+    // yet. Warning, not error (GCC's -Wreturn-type choice): C/C++
+    // call this undefined behaviour, not ill-formed, so the build
+    // still proceeds and codegen's safety-net epilogue handles it.
+    if (!currentFunctionReturnType_.isVoid()) {
+        bool hasReturn = false;
+        if (n.body) {
+            for (auto& stmt : n.body->statements) {
+                if (stmt->nodeType() == "ReturnStmt") { hasReturn = true; break; }
+            }
+        }
+        if (!hasReturn) {
+            diagnostics_.push_back(engine_.missingReturn(
+                n.name, currentFunctionReturnType_.name(), n.span));
+            logFail("function '" + n.name + "' never returns a value");
+        }
+    }
 
     symbols_.popScope();
 }
 
 // ────────────────────────────────────────────────────────────
-//  Block — push a new scope so inner declarations don't leak
+//  Block — push a new scope so inner declarations don't leak.
+//
+//  NOTE: function bodies do NOT come through here — FunctionDecl
+//  iterates its body's statements directly so params and body
+//  locals share one scope (see visit(FunctionDeclNode&)). This
+//  override exists for the ASTVisitor contract and for any future
+//  free-standing nested block ({ ... } inside a body), which the
+//  grammar cannot produce yet.
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(BlockStmtNode& n) {
     symbols_.pushScope();
@@ -81,7 +119,11 @@ void SemanticAnalyzer::visit(VarDeclNode& n) {
         diagnostics_.push_back(
             engine_.redeclaredVariable(n.name, n.span));
         logFail(n.name + " already declared in this scope");
-        // Continue analysis to report further errors — don't return early
+        // Still analyse the initializer: it may contain its own
+        // independent errors (undeclared names, type mismatches),
+        // and skipping it would also leave its subtree without
+        // resolvedType annotations for the visualizer.
+        if (n.initializer) resolveType(*n.initializer);
     } else {
         // ── Resolve initialiser type ─────────────────────
         if (n.initializer) {
@@ -207,6 +249,18 @@ void SemanticAnalyzer::visit(AssignmentExprNode& n) {
         return;
     }
 
+    // "main = 5;" — assigning INTO a function name. The parser can't
+    // reject this (the target is a syntactically valid identifier);
+    // only the symbol table knows the name belongs to a function.
+    if (sym->isFunction) {
+        diagnostics_.push_back(engine_.functionUsedAsValue(n.name, n.span));
+        logFail(n.name + " is a function, not an assignable variable");
+        resolveType(*n.value);  // still analyse the RHS for further errors
+        currentExprType_ = Type::Unknown();
+        n.resolvedType    = "unknown";
+        return;
+    }
+
     Type targetType = sym->type;
     Type valueType  = resolveType(*n.value);
 
@@ -233,6 +287,19 @@ void SemanticAnalyzer::visit(IdentifierNode& n) {
         diagnostics_.push_back(
             engine_.undeclaredIdentifier(n.name, n.span));
         logFail(n.name + " is not declared");
+        currentExprType_ = Type::Unknown();
+        n.resolvedType   = "unknown";
+        return;
+    }
+
+    // A function name resolving here means it's being READ as a value
+    // ("return main;") — meaningless without call syntax or function
+    // pointers, and it would silently lower to a read of an
+    // uninitialised stack slot named after the function.
+    if (sym->isFunction) {
+        diagnostics_.push_back(
+            engine_.functionUsedAsValue(n.name, n.span));
+        logFail(n.name + " is a function, not a variable");
         currentExprType_ = Type::Unknown();
         n.resolvedType   = "unknown";
         return;

@@ -162,6 +162,13 @@ static int compileFile(const std::string& inputPath, const std::string& outputPa
         return 1;
     }
 
+    // Warnings (e.g. SEM_MissingReturn) don't stop the build, but a
+    // warning nobody sees is a warning that doesn't exist — render
+    // them with the same full explanation errors get, then continue.
+    if (collector.totalCount() > 0) {
+        collector.render(std::cerr, src);
+    }
+
     IRGenerator irgen;
     IRProgram ir = irgen.generate(*parseOut.output);
 
