@@ -3,6 +3,7 @@
 #include "../ast/Nodes.hpp"
 #include "../diagnostics/Diagnostic.hpp"
 #include "../diagnostics/DiagnosticEngine.hpp"
+#include "../diagnostics/TraceRecorder.hpp"
 #include <vector>
 #include <memory>
 #include <string>
@@ -93,9 +94,14 @@ private:
     void skipStrayExpressionTokens();
     void emitError(const std::string& message, SourceSpan span);
 
+    // Short "at 'lexeme' (line N)" description of the current token,
+    // used as the detail on recorded trace frames.
+    std::string here() const;
+
     // ── State ─────────────────────────────────────────────
     std::vector<Token>       tokens_;
     std::size_t              pos_ = 0;
     DiagnosticEngine         engine_;
+    TraceRecorder            recorder_{"Parser"};
     std::vector<Diagnostic>  diagnostics_;
 };

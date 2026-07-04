@@ -335,6 +335,37 @@ TEST("redecl: the duplicate's initializer is still analysed for its own errors",
     ASSERT_EQ(r.sem.diagnostics[1].kind, DiagnosticKind::SEM_UndeclaredIdentifier);
 });
 
+// ── Recorded traces (trace-recording work) ────────────────────
+TEST("trace: semantic diagnostic records which function was being analysed", [](){
+    auto r = run("int main() { return y; }");
+    ASSERT_TRUE(r.sem.hasErrors());
+
+    // Runtime-only facts: the enclosing function's NAME and the
+    // identifier being resolved can only appear in a trace recorded
+    // during execution — the curated per-kind chain knows neither.
+    bool sawFunction = false;
+    bool sawResolve  = false;
+    for (const auto& s : r.sem.diagnostics[0].trace) {
+        if (s.component.find("visit(FunctionDeclNode") != std::string::npos &&
+            s.detail.find("'main'") != std::string::npos) sawFunction = true;
+        if (s.component.find("visit(IdentifierNode") != std::string::npos &&
+            s.detail.find("'y'") != std::string::npos) sawResolve = true;
+    }
+    ASSERT_TRUE(sawFunction);
+    ASSERT_TRUE(sawResolve);
+});
+
+TEST("trace: missing-return warning records the analyze->function path", [](){
+    auto r = run("int main() { int x = 5; }");
+    ASSERT_TRUE(!r.sem.hasErrors());          // warning only
+    ASSERT_EQ((int)r.sem.diagnostics.size(), 1);
+
+    bool sawAnalyze = false;
+    for (const auto& s : r.sem.diagnostics[0].trace)
+        if (s.component == "SemanticAnalyzer::analyze()") sawAnalyze = true;
+    ASSERT_TRUE(sawAnalyze);
+});
+
 int main() {
     std::cout << "=== Semantic Analysis Unit Tests ===\n\n";
     return RUN_ALL_TESTS();

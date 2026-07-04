@@ -1,5 +1,6 @@
 #pragma once
 #include "IRValue.hpp"
+#include "../core/SourceSpan.hpp"
 #include <string>
 
 // ============================================================
@@ -51,6 +52,28 @@ struct IRInstruction {
     bool    hasDest = false;
     bool    hasSrc1 = false;
     bool    hasSrc2 = false;
+
+    // ── Provenance ────────────────────────────────────────
+    // span: the source location this instruction was lowered from
+    //   (the AST node's span; line 0 = no source location, e.g. IR
+    //   built directly in tests). Preserved by every optimizer pass
+    //   and surfaced as "# line N:" comments in the assembly — the
+    //   human-readable equivalent of the .loc directives real
+    //   compilers emit for debuggers.
+    // note: machine-recorded transformation history. Empty for
+    //   instructions the optimizer never touched; passes append one
+    //   entry per change ("folded from 't0 = 2 + 3' (ConstantFolding)"),
+    //   so a multi-pass rewrite reads as a chain.
+    // Both are deliberately NOT part of toString() — the plain text
+    //   form is a stable golden format for tests; provenance is
+    //   carried alongside it, not inside it.
+    SourceSpan  span = SourceSpan::point(0, 0);
+    std::string note;
+
+    void appendNote(const std::string& n) {
+        if (!note.empty()) note += "; ";
+        note += n;
+    }
 
     static IRInstruction makeBinary(IROp op, IRValue dest,
                                      IRValue left, IRValue right) {

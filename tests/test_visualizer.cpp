@@ -152,6 +152,36 @@ TEST("end-to-end: --json CLI reports diagnostics and stops before IR on error", 
     ASSERT_TRUE(j.find("\"assembly\": \"\"") != std::string::npos);
 });
 
+TEST("end-to-end: --json exports structured IR provenance (line + note)", [](){
+    std::ofstream src("build/viz_prov.cpp");
+    src << "int main() {\n    return (2 + 3) * 4;\n}\n";
+    src.close();
+
+    std::string j = runJsonCli("build/viz_prov.cpp", "build/viz_prov.json");
+
+    ASSERT_TRUE(j.find("\"irDetailBefore\":") != std::string::npos);
+    ASSERT_TRUE(j.find("\"irDetailAfter\":")  != std::string::npos);
+    // Every instruction of this program comes from source line 2.
+    ASSERT_TRUE(j.find("\"line\":2")          != std::string::npos);
+    // The optimizer's transformation notes flow through to the JSON.
+    // The SURVIVING instruction's history is the propagation note —
+    // the ConstantFolding-noted instructions get DCE'd once their
+    // temps go unused, taking their notes with them (same behaviour
+    // test_optimizer's full-pipeline provenance test locks in).
+    ASSERT_TRUE(j.find("CopyPropagation")     != std::string::npos);
+});
+
+TEST("end-to-end: irDetail fields are empty arrays when IR never ran", [](){
+    std::ofstream src("build/viz_bad2.cpp");
+    src << "int main() {\n    return y;\n}\n";
+    src.close();
+
+    std::string j = runJsonCli("build/viz_bad2.cpp", "build/viz_bad2.json");
+
+    ASSERT_TRUE(j.find("\"irDetailBefore\": []") != std::string::npos);
+    ASSERT_TRUE(j.find("\"irDetailAfter\": []")  != std::string::npos);
+});
+
 int main() {
     return RUN_ALL_TESTS();
 }

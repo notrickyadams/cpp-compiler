@@ -80,7 +80,19 @@ void AssemblyGenerator::loadIntoEax(const IRValue& value, const StackFrameLayout
 void AssemblyGenerator::generateInstruction(const IRInstruction& instr,
                                              const StackFrameLayout& layout,
                                              AssemblyProgram& out) {
-    out.emit("    # " + instr.toString());
+    // Provenance comment: source line + IR text + transformation
+    // history. The human-readable equivalent of the .loc directives
+    // real compilers emit for debuggers — every block of machine
+    // instructions traces back to the source line and the optimizer
+    // decisions that shaped it. Line 0 means the IR was built with
+    // no source locations (direct-IR construction in tests).
+    std::string comment = "    # ";
+    if (instr.span.startLine > 0) {
+        comment += "line " + std::to_string(instr.span.startLine) + ": ";
+    }
+    comment += instr.toString();
+    if (!instr.note.empty()) comment += "   ; " + instr.note;
+    out.emit(comment);
 
     switch (instr.op) {
         case IROp::Copy: {

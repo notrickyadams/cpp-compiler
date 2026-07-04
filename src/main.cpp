@@ -204,6 +204,28 @@ static int compileFile(const std::string& inputPath, const std::string& outputPa
 //  pipeline stopped: stages that never ran emit "" / [] / null,
 //  not absent keys, so the frontend can rely on a fixed shape.
 // ============================================================
+// Structured IR provenance for the visualizer: one object per
+// instruction carrying its stable text form PLUS the source line it
+// was lowered from and any optimizer transformation notes. Kept
+// separate from the plain irBefore/irAfter strings (stable display/
+// test format) — provenance rides alongside the text, not inside it,
+// mirroring IRInstruction's own span/note design.
+static std::string irToJsonDetail(const IRProgram& ir) {
+    std::vector<std::string> fns;
+    for (const auto& fn : ir.functions) {
+        std::vector<std::string> instrs;
+        for (const auto& instr : fn.instructions) {
+            instrs.push_back(
+                "{\"text\":\"" + jsonEscape(instr.toString()) +
+                "\",\"line\":" + std::to_string(instr.span.startLine) +
+                ",\"note\":\"" + jsonEscape(instr.note) + "\"}");
+        }
+        fns.push_back("{\"function\":\"" + jsonEscape(fn.name) +
+                      "\",\"instructions\":" + jsonArray(instrs) + "}");
+    }
+    return jsonArray(fns);
+}
+
 static int compileToJson(const std::string& inputPath) {
     std::ifstream in(inputPath);
     if (!in) {
@@ -221,6 +243,8 @@ static int compileToJson(const std::string& inputPath) {
     std::vector<std::string> semanticLog;
     std::string              irBefore;
     std::string              irAfter;
+    std::string              irDetailBefore = "[]";
+    std::string              irDetailAfter  = "[]";
     std::vector<std::string> optReports;
     std::string              assembly;
 
@@ -251,11 +275,13 @@ static int compileToJson(const std::string& inputPath) {
         if (!collector.hasErrors() && parseOut.output) {
             IRGenerator irgen;
             IRProgram ir = irgen.generate(*parseOut.output);
-            irBefore = ir.toString();
+            irBefore       = ir.toString();
+            irDetailBefore = irToJsonDetail(ir);
 
             Optimizer optimizer;
             auto reports = optimizer.optimize(ir);
-            irAfter = ir.toString();
+            irAfter       = ir.toString();
+            irDetailAfter = irToJsonDetail(ir);
 
             for (auto& r : reports) {
                 optReports.push_back(
@@ -282,6 +308,8 @@ static int compileToJson(const std::string& inputPath) {
     json << "  \"semanticLog\": "           << jsonStringArray(semanticLog) << ",\n";
     json << "  \"irBefore\": \""            << jsonEscape(irBefore) << "\",\n";
     json << "  \"irAfter\": \""             << jsonEscape(irAfter)  << "\",\n";
+    json << "  \"irDetailBefore\": "        << irDetailBefore       << ",\n";
+    json << "  \"irDetailAfter\": "         << irDetailAfter        << ",\n";
     json << "  \"optimizationReports\": "   << jsonStringArray(optReports)  << ",\n";
     json << "  \"assembly\": \""            << jsonEscape(assembly) << "\",\n";
     json << "  \"diagnosticsReport\": "     << diagJson.str()       << "\n";

@@ -2,6 +2,7 @@
 #include "../ast/Nodes.hpp"
 #include "../diagnostics/Diagnostic.hpp"
 #include "../diagnostics/DiagnosticEngine.hpp"
+#include "../diagnostics/TraceRecorder.hpp"
 #include "SymbolTable.hpp"
 #include "Type.hpp"
 #include <vector>
@@ -54,6 +55,7 @@ public:
 private:
     SymbolTable       symbols_;
     DiagnosticEngine  engine_;
+    TraceRecorder     recorder_{"SemanticAnalysis"};
     std::vector<Diagnostic>  diagnostics_;
     std::vector<std::string> log_;
 

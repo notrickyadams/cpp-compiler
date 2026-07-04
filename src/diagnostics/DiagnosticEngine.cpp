@@ -18,7 +18,19 @@ Diagnostic DiagnosticEngine::build(DiagnosticKind kind,
     d.rootCause   = ExplanationBuilder::rootCause(kind, detail, detail2);
     d.explanation = ExplanationBuilder::explain(kind, detail, detail2);
     d.fixes       = ExplanationBuilder::fixes(kind, detail, detail2);
-    d.trace       = ExplanationBuilder::trace(kind);
+
+    // Trace: prefer the REAL call path recorded by the stage. The
+    // curated chain's final step (the engine factory method) is
+    // appended so recorded chains still end at the creation site.
+    // With no recorder (direct engine use in tests/tools), the
+    // curated chain is the fallback.
+    std::vector<TraceStep> curated = ExplanationBuilder::trace(kind);
+    if (recorder_ && !recorder_->empty()) {
+        d.trace = recorder_->snapshot();
+        if (!curated.empty()) d.trace.push_back(curated.back());
+    } else {
+        d.trace = std::move(curated);
+    }
     return d;
 }
 
@@ -141,9 +153,12 @@ Diagnostic DiagnosticEngine::malformedExpression(const std::string& readSoFar,
     d.explanation = ExplanationBuilder::explain(
         DiagnosticKind::PARSE_MalformedExpression, readSoFar, strayText);
 
-    // The static trace names parseReturnStmt; patch in the real call
-    // site so the chain stays accurate when parseVarDecl detects it.
-    if (!d.trace.empty()) d.trace.front().component = originMethod;
+    // The curated fallback trace names parseReturnStmt; patch in the
+    // real call site so the chain stays accurate when parseVarDecl
+    // detects it. A RECORDED trace already contains the genuine call
+    // path, so it must not be rewritten.
+    const bool recorded = (recorder_ && !recorder_->empty());
+    if (!recorded && !d.trace.empty()) d.trace.front().component = originMethod;
 
     // '(' as the stray token would make these read as gibberish
     // ("x + ("), so the code-comparison block is only attached when

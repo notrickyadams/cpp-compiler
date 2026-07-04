@@ -45,8 +45,14 @@ Parser::Parser(std::vector<Token> tokens)
 //  Returns: ProgramNode owning the full tree
 // ────────────────────────────────────────────────────────────
 StageOutput<std::unique_ptr<ProgramNode>> Parser::parse() {
+    // Entry-point attachment (not constructor): keeps the engine's
+    // recorder pointer valid even if this Parser object was moved.
+    engine_.attachRecorder(&recorder_);
+
     auto program = std::make_unique<ProgramNode>();
     program->span = SourceSpan::point(1, 1);
+
+    TraceScope ts(recorder_, "Parser::parse()");
 
     while (!isAtEnd()) {
         // Top level: only function declarations are valid
@@ -73,6 +79,8 @@ StageOutput<std::unique_ptr<ProgramNode>> Parser::parse() {
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<FunctionDeclNode> Parser::parseFunctionDecl() {
     SourceSpan startSpan = current().span();
+    TraceScope ts(recorder_, "Parser::parseFunctionDecl()",
+                  "starting at line " + std::to_string(startSpan.startLine));
 
     std::string retType = parseTypeName();
 
@@ -127,6 +135,7 @@ std::vector<ParamNode> Parser::parseParamList() {
 //  Grammar: '{' statement* '}'
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<BlockStmtNode> Parser::parseBlock() {
+    TraceScope ts(recorder_, "Parser::parseBlock()");
     Token lbrace = expect(TokenType::LBRACE, "'{'");
 
     auto block      = std::make_unique<BlockStmtNode>();
@@ -151,6 +160,7 @@ std::unique_ptr<BlockStmtNode> Parser::parseBlock() {
 //  Grammar: var_decl | return_stmt
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<ASTNode> Parser::parseStatement() {
+    TraceScope ts(recorder_, "Parser::parseStatement()", here());
     if (isTypeName())                     return parseVarDecl();
     if (check(TokenType::KW_RETURN))      return parseReturnStmt();
 
@@ -170,6 +180,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<VarDeclNode> Parser::parseVarDecl() {
     SourceSpan startSpan = current().span();
+    TraceScope ts(recorder_, "Parser::parseVarDecl()", here());
 
     std::string typeName  = parseTypeName();
     Token       nameTok   = expect(TokenType::IDENTIFIER,
@@ -220,6 +231,7 @@ std::unique_ptr<VarDeclNode> Parser::parseVarDecl() {
 //  generic "expected ';', found '2'".
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<ReturnStmtNode> Parser::parseReturnStmt() {
+    TraceScope ts(recorder_, "Parser::parseReturnStmt()", here());
     Token kwTok = expect(TokenType::KW_RETURN, "'return'");
 
     auto node  = std::make_unique<ReturnStmtNode>();
@@ -286,6 +298,7 @@ std::unique_ptr<ASTNode> Parser::parseExpression() {
 //  the right-hand side is what makes this right-associative.
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<ASTNode> Parser::parseAssignment() {
+    TraceScope ts(recorder_, "Parser::parseAssignment()");
     auto left = parseEquality();
 
     if (check(TokenType::ASSIGN)) {
@@ -387,6 +400,8 @@ std::unique_ptr<ASTNode> Parser::parseMultiplication() {
 }
 
 std::unique_ptr<ASTNode> Parser::parsePrimary() {
+    TraceScope ts(recorder_, "Parser::parsePrimary()", here());
+
     // Integer literal
     if (check(TokenType::INTEGER_LITERAL)) {
         Token tok = advance();
@@ -470,6 +485,21 @@ bool Parser::isExpressionStart(TokenType t) const {
 const Token& Parser::current() const {
     if (pos_ < tokens_.size()) return tokens_[pos_];
     return tokens_.back();  // always EOF
+}
+
+// Detail text for recorded trace frames. TraceScope placement rule:
+// every method where a diagnostic can fire gets a scope (statements,
+// parseAssignment, parsePrimary), plus the structural landmarks
+// (parse/parseFunctionDecl/parseBlock/parseStatement). The middle
+// precedence levels (equality..multiplication) cannot fail on their
+// own, so they are deliberately not recorded — omitting a frame
+// never falsifies the path, it only shortens it.
+std::string Parser::here() const {
+    const Token& t = current();
+    std::string what = t.lexeme.empty()
+        ? tokenTypeName(t.type)
+        : "'" + t.lexeme + "'";
+    return "at " + what + " (line " + std::to_string(t.line) + ")";
 }
 
 Token Parser::advance() {

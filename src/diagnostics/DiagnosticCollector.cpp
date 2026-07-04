@@ -222,7 +222,12 @@ void DiagnosticCollector::renderTrace(std::ostream& out,
     if (trace.empty()) return;
     out << trace.front().stage << "\n";
     for (const auto& step : trace) {
-        out << "→ " << step.component << "\n";
+        out << "→ " << step.component;
+        // Recorded frames carry runtime facts (which function, which
+        // token, which position) — the whole point of recording is
+        // that the user gets to SEE them.
+        if (!step.detail.empty()) out << "   [" << step.detail << "]";
+        out << "\n";
     }
 }
 
@@ -278,6 +283,7 @@ void DiagnosticCollector::renderJson(std::ostream& out,
         out << "      \"trace\": [";
         for (std::size_t j = 0; j < d.trace.size(); ++j) {
             out << "{\"component\":\"" << jsonEscape(d.trace[j].component)
+                << "\",\"detail\":\""  << jsonEscape(d.trace[j].detail)
                 << "\",\"ok\":" << (d.trace[j].ok ? "true" : "false") << "}";
             if (j + 1 < d.trace.size()) out << ", ";
         }

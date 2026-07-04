@@ -172,6 +172,32 @@ TEST("codegen: function with no Return still ends in leave/ret", [](){
     ASSERT_TRUE(lines[i - 1].find("leave") != std::string::npos);
 });
 
+// ── Provenance comments (span threading through codegen) ──────
+TEST("provenance: assembly comments carry the source line of each IR instruction", [](){
+    auto asmProg = genAsmFromSource(
+        "int main() {\n"
+        "    int x = 5;\n"
+        "    return x + 2;\n"
+        "}\n"
+    );
+    std::string text = asmProg.toString();
+    ASSERT_TRUE(text.find("# line 2: x = 5")      != std::string::npos);
+    ASSERT_TRUE(text.find("# line 3: t0 = x + 2") != std::string::npos);
+    ASSERT_TRUE(text.find("# line 3: return t0")  != std::string::npos);
+});
+
+TEST("provenance: direct-IR (no source) keeps the plain comment form", [](){
+    IRFunction fn;
+    fn.name = "main";
+    fn.instructions.push_back(IRInstruction::makeReturn(IRValue::makeConst(0)));
+    IRProgram p; p.functions.push_back(fn);
+
+    AssemblyGenerator gen;
+    std::string text = gen.generate(p).toString();
+    ASSERT_TRUE(text.find("# return 0") != std::string::npos);
+    ASSERT_TRUE(text.find("# line")     == std::string::npos);
+});
+
 // ============================================================
 //  End-to-end: assemble + link + run real generated code and
 //  check the process exit code.

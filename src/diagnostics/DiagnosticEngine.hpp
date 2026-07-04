@@ -1,6 +1,7 @@
 #pragma once
 #include "Diagnostic.hpp"
 #include "ExplanationBuilder.hpp"
+#include "TraceRecorder.hpp"
 #include <string>
 
 // ============================================================
@@ -21,9 +22,26 @@
 //  Usage:
 //    DiagnosticEngine engine;
 //    Diagnostic d = engine.unexpectedChar('@', span);
+//
+//  Traces:
+//    If a stage attaches its TraceRecorder (attachRecorder),
+//    every diagnostic built here carries a snapshot of the
+//    stage's REAL call path at creation time, with the curated
+//    factory step appended. With no recorder attached (direct
+//    construction in unit tests / tooling), the curated
+//    reference chain from ExplanationBuilder::trace() is used
+//    as the fallback.
 // ============================================================
 class DiagnosticEngine {
 public:
+    // Observer only — the stage owns the recorder and must outlive
+    // any use of this engine. Stages re-attach at the start of
+    // their public entry point so the pointer stays valid even if
+    // the stage object was moved.
+    void attachRecorder(const TraceRecorder* recorder) {
+        recorder_ = recorder;
+    }
+
     // ── Lexer diagnostics ─────────────────────────────────
 
     Diagnostic unexpectedChar(char c, SourceSpan span) const;
@@ -114,4 +132,6 @@ private:
                       const std::string& message,
                       const std::string& detail,
                       const std::string& detail2 = "") const;
+
+    const TraceRecorder* recorder_ = nullptr;
 };

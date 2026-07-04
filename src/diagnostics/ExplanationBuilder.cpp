@@ -342,7 +342,19 @@ ExplanationBuilder::fixes(DiagnosticKind kind,
 }
 
 // ─────────────────────────────────────────────────────────────
-//  trace — the compiler's internal call chain for this kind
+//  trace — CURATED reference chain for this kind.
+//
+//  Role change (trace-recording work): pipeline stages now attach
+//  a TraceRecorder to their DiagnosticEngine, so user-facing
+//  diagnostics carry the stage's REAL call path recorded at the
+//  moment the error fired. These curated chains remain for two
+//  purposes:
+//    1. Fallback — diagnostics constructed directly through
+//       DiagnosticEngine with no recorder attached (unit tests,
+//       tooling) still get a meaningful reference chain.
+//    2. The final step of each chain names the engine factory
+//       method; DiagnosticEngine::build() appends that step to
+//       recorded traces so every chain ends at the creation site.
 // ─────────────────────────────────────────────────────────────
 std::vector<TraceStep>
 ExplanationBuilder::trace(DiagnosticKind kind) {

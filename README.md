@@ -101,17 +101,17 @@ Stdlib-only Python (`http.server` + `subprocess`, no pip install) shelling out t
 ## tests
 
 ```
-test_lexer        29/29   (86  assertions)
-test_diagnostics  20/20   (79  assertions)
-test_parser       36/36   (138 assertions)
-test_semantic     34/34   (77  assertions)
-test_ir           18/18   (61  assertions)
-test_optimizer    18/18   (37  assertions)
-test_codegen      19/19   (34  assertions)
+test_lexer        31/31   (91  assertions)
+test_diagnostics  21/21   (81  assertions)
+test_parser       38/38   (145 assertions)
+test_semantic     36/36   (83  assertions)
+test_ir           20/20   (67  assertions)
+test_optimizer    21/21   (48  assertions)
+test_codegen      21/21   (39  assertions)
 test_driver        4/4    (9   assertions)
-test_visualizer    9/9    (29  assertions)
+test_visualizer   11/11   (35  assertions)
                  ───────────────────────
-                 187/187  (550 assertions)   0 failures
+                 203/203  (598 assertions)   0 failures
 ```
 
 `test_codegen`, `test_driver`, and `test_visualizer` don't mock anything: they shell out to real `g++`, assemble and link actual `.s` files, run the resulting `.exe`, and check its process exit code. If generated assembly is wrong, these fail because a real binary does the wrong thing, not because some abstraction disagreed with itself.
@@ -170,6 +170,8 @@ A handful of things that actually went wrong, in case I (or anyone else reading 
 
 - **Copy propagation only ever substitutes temps, never named variables.** A temp has exactly one definition by construction, so inlining its value anywhere it's used is always safe. A variable could be reassigned somewhere downstream, and inlining it would need real liveness analysis I haven't written, so it just doesn't touch them.
 
+- **The TRACE section used to be a hand-written lookup, not a recording.** Early on, each error kind had a curated "here's how the compiler gets here" chain written by hand in the knowledge base. It looked dynamic; it wasn't — it could never tell you *which* function was being analysed or *which* token was being read, because that only exists at runtime. Now each stage owns a `TraceRecorder` and its methods open RAII scopes, so the trace attached to a diagnostic is a snapshot of the frames actually open when the error fired — `visit(FunctionDeclNode&) [function 'main']`, `parseStatement() [at 'return' (line 3)]`. The curated chains still exist as the fallback when an engine is used directly with no recorder (unit tests do this), and their final step is appended to recorded chains so every trace ends at the factory method that created the diagnostic.
+
 - **A bare `return;` inside a non-void function used to compile clean.** The semantic analyzer had already noticed: there was a log line that said `FAIL: bare return in non-void function`, but nothing ever turned that into an actual diagnostic. So the pipeline kept going, and codegen happily emitted `leave; ret` without ever loading anything into `%eax`. The program would "successfully" exit with whatever garbage happened to already be sitting in that register. I only found it by writing twenty adversarial test programs by hand and running them through the real CLI instead of trusting the existing unit tests to have caught everything.
 
 ## before / after optimization
@@ -203,16 +205,18 @@ _main:
     andl    $-16, %esp
     subl    $8, %esp
     call    ___main
-    # x = 5
+    # line 2: x = 5
     movl    $5, -4(%ebp)
-    # t0 = x + 2
+    # line 3: t0 = x + 2
     movl    -4(%ebp), %eax
     addl    $2, %eax
     movl    %eax, -8(%ebp)
-    # return t0
+    # line 3: return t0
     movl    -8(%ebp), %eax
     leave
     ret
 ```
+
+The `# line N:` prefixes are source provenance: every IR instruction carries the span of the AST node it was lowered from, the optimizer passes preserve it (and append a note describing any rewrite they perform), and codegen prints it above each instruction block — the same idea as the `.loc` directives real compilers emit for debuggers, in a form you can read.
 
 `x` and `t0` each get their own 4-byte stack slot. The `andl`/`call ___main` pair only shows up on `main`; every other function gets a plain symbol and skips both.

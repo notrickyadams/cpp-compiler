@@ -54,7 +54,7 @@ void IRGenerator::visit(BlockStmtNode& n) {
 void IRGenerator::visit(VarDeclNode& n) {
     if (n.initializer) {
         IRValue val = evalExpr(*n.initializer);
-        emit(IRInstruction::makeCopy(IRValue::makeVar(n.name), val));
+        emit(IRInstruction::makeCopy(IRValue::makeVar(n.name), val), n.span);
     }
 }
 
@@ -69,9 +69,9 @@ void IRGenerator::visit(VarDeclNode& n) {
 void IRGenerator::visit(ReturnStmtNode& n) {
     if (n.value) {
         IRValue val = evalExpr(*n.value);
-        emit(IRInstruction::makeReturn(val));
+        emit(IRInstruction::makeReturn(val), n.span);
     } else {
-        emit(IRInstruction::makeReturnVoid());
+        emit(IRInstruction::makeReturnVoid(), n.span);
     }
 }
 
@@ -88,7 +88,7 @@ void IRGenerator::visit(BinaryExprNode& n) {
     IRValue right = evalExpr(*n.right);
     IRValue temp  = newTemp();
 
-    emit(IRInstruction::makeBinary(opFromString(n.op), temp, left, right));
+    emit(IRInstruction::makeBinary(opFromString(n.op), temp, left, right), n.span);
     currentValue_ = temp;
 }
 
@@ -112,7 +112,7 @@ void IRGenerator::visit(BinaryExprNode& n) {
 // ────────────────────────────────────────────────────────────
 void IRGenerator::visit(AssignmentExprNode& n) {
     IRValue value = evalExpr(*n.value);
-    emit(IRInstruction::makeCopy(IRValue::makeVar(n.name), value));
+    emit(IRInstruction::makeCopy(IRValue::makeVar(n.name), value), n.span);
     currentValue_ = IRValue::makeVar(n.name);
 }
 
@@ -143,7 +143,8 @@ IRValue IRGenerator::newTemp() {
     return IRValue::makeTemp(tempCounter_++);
 }
 
-void IRGenerator::emit(IRInstruction instr) {
+void IRGenerator::emit(IRInstruction instr, const SourceSpan& span) {
+    instr.span = span;
     currentFunction_->instructions.push_back(std::move(instr));
 }
 

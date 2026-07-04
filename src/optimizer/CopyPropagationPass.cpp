@@ -14,11 +14,21 @@ bool CopyPropagationPass::run(IRFunction& fn) {
     for (auto& instr : fn.instructions) {
         if (instr.hasSrc1) {
             IRValue updated = substitute(instr.src1, subs);
-            if (updated != instr.src1) { instr.src1 = updated; changed = true; }
+            if (updated != instr.src1) {
+                instr.appendNote(instr.src1.toString() + " -> " +
+                                 updated.toString() + " (CopyPropagation)");
+                instr.src1 = updated;
+                changed = true;
+            }
         }
         if (instr.hasSrc2) {
             IRValue updated = substitute(instr.src2, subs);
-            if (updated != instr.src2) { instr.src2 = updated; changed = true; }
+            if (updated != instr.src2) {
+                instr.appendNote(instr.src2.toString() + " -> " +
+                                 updated.toString() + " (CopyPropagation)");
+                instr.src2 = updated;
+                changed = true;
+            }
         }
 
         // Only a Copy into a TEMP destination registers a new

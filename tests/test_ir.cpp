@@ -214,6 +214,23 @@ TEST("assignment: a = b = c chains without creating any temp", [](){
     ASSERT_EQ(instrs[5].toString(), std::string("return a"));
 });
 
+// ── Source provenance (span threading) ────────────────────────
+TEST("provenance: every lowered instruction carries its source line", [](){
+    auto r = genIR("int main() {\n    int x = 5;\n    return x + 2;\n}");
+    auto& instrs = r.ir.functions[0].instructions;
+    ASSERT_EQ((int)instrs.size(), 3);
+    ASSERT_EQ(instrs[0].span.startLine, 2);  // x = 5        (decl on line 2)
+    ASSERT_EQ(instrs[1].span.startLine, 3);  // t0 = x + 2   ('+' on line 3)
+    ASSERT_EQ(instrs[2].span.startLine, 3);  // return t0    (stmt on line 3)
+});
+
+TEST("provenance: direct-IR instructions default to line 0 and no note", [](){
+    IRInstruction i = IRInstruction::makeCopy(
+        IRValue::makeVar("x"), IRValue::makeConst(5));
+    ASSERT_EQ(i.span.startLine, 0);
+    ASSERT_TRUE(i.note.empty());
+});
+
 int main() {
     std::cout << "=== IR Generation Unit Tests ===\n\n";
     return RUN_ALL_TESTS();

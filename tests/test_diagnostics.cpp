@@ -251,6 +251,17 @@ TEST("collector: warning severity renders WARNING TYPE header, not ERROR TYPE", 
     ASSERT_TRUE(out.find("1 warning(s)") != std::string::npos);
 });
 
+// ── Curated fallback (no recorder attached) ──────────────────
+TEST("trace: direct engine use (no recorder) falls back to the curated chain", [](){
+    DiagnosticEngine engine;   // never attached to a TraceRecorder
+    Diagnostic d = engine.undeclaredIdentifier("y", SourceSpan::point(1, 1));
+    ASSERT_TRUE(!d.trace.empty());
+    // Curated reference-chain content — a recorded trace would start
+    // with the stage entry point instead.
+    ASSERT_EQ(d.trace.front().component,
+              std::string("SemanticAnalyzer::visitIdentifier()"));
+});
+
 // ── SourceSpan helpers ───────────────────────────────────────
 TEST("sourcespan: point has length 1", [](){
     SourceSpan sp = SourceSpan::point(5, 3);

@@ -47,8 +47,10 @@ private:
     // Allocate a fresh temporary (t0, t1, ...) for the current function.
     IRValue newTemp();
 
-    // Append an instruction to the function currently being built.
-    void emit(IRInstruction instr);
+    // Append an instruction to the function currently being built,
+    // stamping it with the source span of the AST node it was
+    // lowered from — this is where source provenance enters the IR.
+    void emit(IRInstruction instr, const SourceSpan& span);
 
     // Map AST operator lexeme ("+", "==", ...) to an IROp.
     // Precondition: op is one of the 8 operators the parser accepts —

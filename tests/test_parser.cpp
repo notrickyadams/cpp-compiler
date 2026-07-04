@@ -440,9 +440,14 @@ TEST("malformed: int x = 5 5; produces exactly one diagnostic, no cascade", []()
     ASSERT_EQ(out.diagnostics[0].kind, DiagnosticKind::PARSE_MalformedExpression);
     // The narrative names the var-decl statement, not "return"
     ASSERT_TRUE(out.diagnostics[0].explanation.find("int x = 5") != std::string::npos);
-    // And the trace names the method that actually detected it
-    ASSERT_EQ(out.diagnostics[0].trace.front().component,
-              std::string("Parser::parseVarDecl()"));
+    // And the trace contains the method that actually detected it.
+    // (No longer the FRONT element: traces are now recorded from
+    // execution, so the chain begins at the real outermost frame,
+    // Parser::parse(), with parseVarDecl mid-chain.)
+    bool sawVarDecl = false;
+    for (const auto& s : out.diagnostics[0].trace)
+        if (s.component == "Parser::parseVarDecl()") sawVarDecl = true;
+    ASSERT_TRUE(sawVarDecl);
 });
 
 TEST("malformed: multiple stray tokens (return x 2 + 3;) still one diagnostic", [](){
@@ -470,6 +475,35 @@ TEST("robustness: out-of-range literal does not crash the parser", [](){
     Parser parser(lexOut.output);
     auto out = parser.parse();          // must not crash
     ASSERT_TRUE(out.output != nullptr); // clamped literal, tree intact
+});
+
+// ── Recorded traces (trace-recording work) ────────────────────
+TEST("trace: parser diagnostics carry the real descent path, not a curated one", [](){
+    auto out = parseSource("int main() { int x=1; return x 2; }");
+    ASSERT_TRUE(out.hasErrors());
+
+    // The curated chain for MalformedExpression begins at
+    // parseReturnStmt — only a trace RECORDED during execution can
+    // contain the outer frames the parser actually descended through.
+    bool sawParse  = false;
+    bool sawFnDecl = false;
+    bool sawReturn = false;
+    for (const auto& s : out.diagnostics[0].trace) {
+        if (s.component == "Parser::parse()")             sawParse  = true;
+        if (s.component == "Parser::parseFunctionDecl()") sawFnDecl = true;
+        if (s.component == "Parser::parseReturnStmt()")   sawReturn = true;
+    }
+    ASSERT_TRUE(sawParse);
+    ASSERT_TRUE(sawFnDecl);
+    ASSERT_TRUE(sawReturn);
+});
+
+TEST("trace: recorded chain still ends at the DiagnosticEngine factory step", [](){
+    auto out = parseSource("int main() { int x=1; return x 2; }");
+    const auto& trace = out.diagnostics[0].trace;
+    ASSERT_TRUE(!trace.empty());
+    ASSERT_TRUE(trace.back().component.find("DiagnosticEngine::") != std::string::npos);
+    ASSERT_TRUE(!trace.back().ok);
 });
 
 int main() {

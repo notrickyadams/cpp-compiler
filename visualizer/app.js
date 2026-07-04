@@ -49,8 +49,8 @@ async function compile() {
     renderTokens(data.tokens);
     renderAst(data.ast);
     renderSemantic(data.semanticLog);
-    renderPre("irBefore", data.irBefore);
-    renderPre("irAfter", data.irAfter);
+    renderIr("irBefore", data.irDetailBefore, data.irBefore);
+    renderIr("irAfter",  data.irDetailAfter,  data.irAfter);
     renderOptimization(data.optimizationReports);
     renderPre("assembly", data.assembly);
     const { errorCount, warningCount } = renderDiagnostics(data.diagnosticsReport);
@@ -81,6 +81,33 @@ function renderPre(panelId, text) {
   panel.innerHTML = "";
   const pre = document.createElement("pre");
   pre.textContent = text && text.length ? text : "(empty — this stage did not run)";
+  panel.appendChild(pre);
+}
+
+// IR panels with provenance: each instruction shows the source line
+// it was lowered from and any optimizer transformation notes the
+// passes recorded on it. Falls back to the plain-text form if the
+// structured detail is missing/empty (older JSON, stage didn't run).
+function renderIr(panelId, detail, fallbackText) {
+  if (!detail || detail.length === 0) {
+    renderPre(panelId, fallbackText);
+    return;
+  }
+  const panel = document.getElementById("panel-" + panelId);
+  panel.innerHTML = "";
+  const pre = document.createElement("pre");
+  let out = "";
+  for (const fn of detail) {
+    out += `function ${fn.function}:\n`;
+    for (const ins of fn.instructions) {
+      const loc = ins.line > 0 ? `line ${String(ins.line).padStart(3)}` : "       ";
+      out += `  ${loc} │ ${ins.text}`;
+      if (ins.note) out += `    ; ${ins.note}`;
+      out += "\n";
+    }
+    out += "\n";
+  }
+  pre.textContent = out;
   panel.appendChild(pre);
 }
 
@@ -181,7 +208,10 @@ function renderDiagnostics(report) {
       html += `<h4>Trace</h4>`;
       if (d.stage) html += `<div class="trace-step">${escapeHtml(d.stage)}</div>`;
       for (const step of d.trace) {
-        html += `<div class="trace-step">→ ${escapeHtml(step.component)}</div>`;
+        // Recorded frames carry runtime facts (which function, which
+        // token, which position) — show them next to the component.
+        const detail = step.detail ? `   [${escapeHtml(step.detail)}]` : "";
+        html += `<div class="trace-step">→ ${escapeHtml(step.component)}${detail}</div>`;
       }
     }
 

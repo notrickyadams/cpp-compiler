@@ -48,8 +48,19 @@ bool ConstantFoldingPass::run(IRFunction& fn) {
         int result;
         if (foldConstants(instr.op, instr.src1.constValue,
                                      instr.src2.constValue, result)) {
-            IRValue dest = instr.dest;
+            // Provenance: the replacement must keep the original's
+            // source span (it still comes from the same source
+            // expression) and record what it used to be — rebuilding
+            // via makeCopy() alone would silently wipe both.
+            IRValue     dest   = instr.dest;
+            SourceSpan  span   = instr.span;
+            std::string before = instr.toString();
+            std::string prior  = instr.note;
+
             instr = IRInstruction::makeCopy(dest, IRValue::makeConst(result));
+            instr.span = span;
+            instr.note = prior;
+            instr.appendNote("folded from '" + before + "' (ConstantFolding)");
             changed = true;
         }
     }

@@ -256,6 +256,54 @@ TEST("DCE: never removes a named-variable destination", [](){
     ASSERT_EQ((int)fn.instructions.size(), 2);
 });
 
+// ── Optimization provenance (span + note preservation) ────────
+TEST("provenance: folding preserves the span and records the original text", [](){
+    IRFunction fn;
+    IRInstruction add = IRInstruction::makeBinary(
+        IROp::Add, IRValue::makeTemp(0), IRValue::makeConst(2), IRValue::makeConst(3));
+    add.span = SourceSpan::point(7, 12);
+    fn.instructions.push_back(add);
+
+    ConstantFoldingPass pass;
+    ASSERT_TRUE(pass.run(fn));
+    ASSERT_EQ(fn.instructions[0].span.startLine, 7);
+    ASSERT_TRUE(fn.instructions[0].note.find("t0 = 2 + 3")      != std::string::npos);
+    ASSERT_TRUE(fn.instructions[0].note.find("ConstantFolding") != std::string::npos);
+});
+
+TEST("provenance: copy propagation records each operand substitution", [](){
+    IRFunction fn;
+    fn.instructions.push_back(IRInstruction::makeCopy(
+        IRValue::makeTemp(0), IRValue::makeConst(5)));
+    fn.instructions.push_back(IRInstruction::makeReturn(IRValue::makeTemp(0)));
+
+    CopyPropagationPass pass;
+    ASSERT_TRUE(pass.run(fn));
+    ASSERT_EQ(fn.instructions[1].toString(), std::string("return 5"));
+    ASSERT_TRUE(fn.instructions[1].note.find("t0 -> 5")         != std::string::npos);
+    ASSERT_TRUE(fn.instructions[1].note.find("CopyPropagation") != std::string::npos);
+});
+
+TEST("provenance: the surviving instruction of a full pipeline carries its history", [](){
+    // t0 = 2 + 3; t1 = t0 * 4; return t1  — fold, propagate, fold, DCE.
+    IRFunction fn;
+    fn.instructions.push_back(IRInstruction::makeBinary(
+        IROp::Add, IRValue::makeTemp(0), IRValue::makeConst(2), IRValue::makeConst(3)));
+    fn.instructions.push_back(IRInstruction::makeBinary(
+        IROp::Mul, IRValue::makeTemp(1), IRValue::makeTemp(0), IRValue::makeConst(4)));
+    fn.instructions.push_back(IRInstruction::makeReturn(IRValue::makeTemp(1)));
+
+    IRProgram prog;
+    prog.functions.push_back(fn);
+    Optimizer opt;
+    opt.optimize(prog);
+
+    auto& instrs = prog.functions[0].instructions;
+    ASSERT_EQ((int)instrs.size(), 1);
+    ASSERT_EQ(instrs[0].toString(), std::string("return 20"));
+    ASSERT_TRUE(instrs[0].note.find("CopyPropagation") != std::string::npos);
+});
+
 int main() {
     std::cout << "=== Optimizer Unit Tests ===\n\n";
     return RUN_ALL_TESTS();

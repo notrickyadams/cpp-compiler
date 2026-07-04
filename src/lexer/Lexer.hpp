@@ -2,6 +2,7 @@
 #include "Token.hpp"
 #include "../diagnostics/Diagnostic.hpp"
 #include "../diagnostics/DiagnosticEngine.hpp"
+#include "../diagnostics/TraceRecorder.hpp"
 #include <string>
 #include <vector>
 
@@ -61,6 +62,7 @@ private:
     int                  col_;
 
     DiagnosticEngine     engine_;   // stateless factory
+    TraceRecorder        recorder_{"Lexer"};  // records the live scan path
     std::vector<Diagnostic> pendingDiagnostics_;  // accumulated during scan
 
     // Stored result from last tokenize() call (for compat helpers)

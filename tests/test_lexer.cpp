@@ -276,6 +276,38 @@ TEST("edge: only whitespace yields only EOF", [](){
     ASSERT_EQ(result.output[0].type, TokenType::END_OF_FILE);
 });
 
+// ── Recorded traces (trace-recording work) ────────────────────
+TEST("trace: diagnostic carries the lexer's recorded scan path", [](){
+    Lexer lexer("int @x;");
+    auto result = lexer.tokenize();
+    ASSERT_TRUE(!result.diagnostics.empty());
+
+    // One declaration per statement: a comma at brace depth inside a
+    // TEST body splits the macro's arguments (recurring gotcha).
+    bool sawTokenize  = false;
+    bool sawNextToken = false;
+    bool sawLexSymbol = false;
+    for (const auto& s : result.diagnostics[0].trace) {
+        if (s.component == "Lexer::tokenize()")  sawTokenize  = true;
+        if (s.component == "Lexer::nextToken()") sawNextToken = true;
+        if (s.component == "Lexer::lexSymbol()") sawLexSymbol = true;
+    }
+    ASSERT_TRUE(sawTokenize);
+    ASSERT_TRUE(sawNextToken);
+    ASSERT_TRUE(sawLexSymbol);
+});
+
+TEST("trace: recorded lexer frame carries the real scan position", [](){
+    Lexer lexer("int @x;");
+    auto result = lexer.tokenize();
+    // '@' is at line 1, col 5 — a position only a trace recorded at
+    // runtime can contain (the curated chains have no positions).
+    bool sawPosition = false;
+    for (const auto& s : result.diagnostics[0].trace)
+        if (s.detail.find("line 1, col 5") != std::string::npos) sawPosition = true;
+    ASSERT_TRUE(sawPosition);
+});
+
 // ── main ──────────────────────────────────────────────────────
 int main() {
     std::cout << "=== Lexer Unit Tests (v2 — with Diagnostic system) ===\n\n";

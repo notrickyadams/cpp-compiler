@@ -12,8 +12,14 @@ Lexer::Lexer(std::string source)
 //  tokenize() — public entry point
 // ────────────────────────────────────────────────────────────
 StageOutput<std::vector<Token>> Lexer::tokenize() {
+    // (Re-)attach here rather than in the constructor: entry-point
+    // attachment keeps the engine's recorder pointer valid even if
+    // this Lexer object was moved after construction.
+    engine_.attachRecorder(&recorder_);
     pendingDiagnostics_.clear();
     std::vector<Token> tokens;
+
+    TraceScope ts(recorder_, "Lexer::tokenize()");
 
     while (true) {
         Token tok = nextToken();
@@ -34,6 +40,10 @@ StageOutput<std::vector<Token>> Lexer::tokenize() {
 Token Lexer::nextToken() {
     skipWhitespaceAndComments();
     if (isAtEnd()) return makeToken(TokenType::END_OF_FILE, "", line_, col_);
+
+    TraceScope ts(recorder_, "Lexer::nextToken()",
+                  "at line " + std::to_string(line_) +
+                  ", col " + std::to_string(col_));
 
     char c = peek();
     if (std::isalpha(c) || c == '_') return lexIdentifierOrKeyword();
@@ -58,6 +68,10 @@ void Lexer::skipWhitespaceAndComments() {
         } else if (c == '/' && peekNext() == '*') {
             int startLine = line_;
             int startCol  = col_;
+            TraceScope ts(recorder_, "Lexer::skipWhitespaceAndComments()",
+                          "inside block comment opened at line " +
+                          std::to_string(startLine) + ", col " +
+                          std::to_string(startCol));
             advance(); advance(); // consume '/*'
             bool closed = false;
             while (!isAtEnd()) {
@@ -104,6 +118,7 @@ Token Lexer::lexIdentifierOrKeyword() {
 Token Lexer::lexNumber() {
     int startLine = line_;
     int startCol  = col_;
+    TraceScope ts(recorder_, "Lexer::lexNumber()", "scanning digits");
     std::string lexeme;
 
     while (!isAtEnd() && std::isdigit(peek())) {
@@ -133,6 +148,8 @@ Token Lexer::lexNumber() {
 Token Lexer::lexSymbol() {
     int startLine = line_;
     int startCol  = col_;
+    TraceScope ts(recorder_, "Lexer::lexSymbol()",
+                  std::string("dispatching on '") + peek() + "'");
     char c = advance();
 
     switch (c) {
