@@ -144,7 +144,11 @@ IRValue IRGenerator::newTemp() {
 }
 
 void IRGenerator::emit(IRInstruction instr, const SourceSpan& span) {
+#ifndef CPPC_NO_PROVENANCE
     instr.span = span;
+#else
+    (void)span;  // provenance ablated for the overhead experiments (E1/E2)
+#endif
     currentFunction_->instructions.push_back(std::move(instr));
 }
 

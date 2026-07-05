@@ -19,7 +19,7 @@ StageOutput<std::vector<Token>> Lexer::tokenize() {
     pendingDiagnostics_.clear();
     std::vector<Token> tokens;
 
-    TraceScope ts(recorder_, "Lexer::tokenize()");
+    TRACE_SCOPE(recorder_,"Lexer::tokenize()");
 
     while (true) {
         Token tok = nextToken();
@@ -41,7 +41,7 @@ Token Lexer::nextToken() {
     skipWhitespaceAndComments();
     if (isAtEnd()) return makeToken(TokenType::END_OF_FILE, "", line_, col_);
 
-    TraceScope ts(recorder_, "Lexer::nextToken()",
+    TRACE_SCOPE(recorder_,"Lexer::nextToken()",
                   "at line " + std::to_string(line_) +
                   ", col " + std::to_string(col_));
 
@@ -68,7 +68,7 @@ void Lexer::skipWhitespaceAndComments() {
         } else if (c == '/' && peekNext() == '*') {
             int startLine = line_;
             int startCol  = col_;
-            TraceScope ts(recorder_, "Lexer::skipWhitespaceAndComments()",
+            TRACE_SCOPE(recorder_,"Lexer::skipWhitespaceAndComments()",
                           "inside block comment opened at line " +
                           std::to_string(startLine) + ", col " +
                           std::to_string(startCol));
@@ -118,7 +118,7 @@ Token Lexer::lexIdentifierOrKeyword() {
 Token Lexer::lexNumber() {
     int startLine = line_;
     int startCol  = col_;
-    TraceScope ts(recorder_, "Lexer::lexNumber()", "scanning digits");
+    TRACE_SCOPE(recorder_,"Lexer::lexNumber()", "scanning digits");
     std::string lexeme;
 
     while (!isAtEnd() && std::isdigit(peek())) {
@@ -148,7 +148,7 @@ Token Lexer::lexNumber() {
 Token Lexer::lexSymbol() {
     int startLine = line_;
     int startCol  = col_;
-    TraceScope ts(recorder_, "Lexer::lexSymbol()",
+    TRACE_SCOPE(recorder_,"Lexer::lexSymbol()",
                   std::string("dispatching on '") + peek() + "'");
     char c = advance();
 

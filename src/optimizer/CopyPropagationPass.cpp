@@ -15,8 +15,10 @@ bool CopyPropagationPass::run(IRFunction& fn) {
         if (instr.hasSrc1) {
             IRValue updated = substitute(instr.src1, subs);
             if (updated != instr.src1) {
+#ifndef CPPC_NO_PROVENANCE
                 instr.appendNote(instr.src1.toString() + " -> " +
                                  updated.toString() + " (CopyPropagation)");
+#endif
                 instr.src1 = updated;
                 changed = true;
             }
@@ -24,8 +26,10 @@ bool CopyPropagationPass::run(IRFunction& fn) {
         if (instr.hasSrc2) {
             IRValue updated = substitute(instr.src2, subs);
             if (updated != instr.src2) {
+#ifndef CPPC_NO_PROVENANCE
                 instr.appendNote(instr.src2.toString() + " -> " +
                                  updated.toString() + " (CopyPropagation)");
+#endif
                 instr.src2 = updated;
                 changed = true;
             }

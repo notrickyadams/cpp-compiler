@@ -8,7 +8,7 @@ StageOutput<bool> SemanticAnalyzer::analyze(ProgramNode& program) {
     // recorder pointer valid even if this analyzer object was moved.
     engine_.attachRecorder(&recorder_);
 
-    TraceScope ts(recorder_, "SemanticAnalyzer::analyze()");
+    TRACE_SCOPE(recorder_,"SemanticAnalyzer::analyze()");
     program.accept(*this);
 
     StageOutput<bool> out;
@@ -51,7 +51,7 @@ void SemanticAnalyzer::visit(ProgramNode& n) {
 //  share one stack slot.)
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(FunctionDeclNode& n) {
-    TraceScope ts(recorder_, "SemanticAnalyzer::visit(FunctionDeclNode&)",
+    TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(FunctionDeclNode&)",
                   "function '" + n.name + "'");
     currentFunctionName_       = n.name;
     currentFunctionReturnType_ = typeFromName(n.returnType);
@@ -119,7 +119,7 @@ void SemanticAnalyzer::visit(BlockStmtNode& n) {
 //  Then declares the variable in the current scope.
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(VarDeclNode& n) {
-    TraceScope ts(recorder_, "SemanticAnalyzer::visit(VarDeclNode&)",
+    TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(VarDeclNode&)",
                   "declaring '" + n.name + "' at line " +
                   std::to_string(n.span.startLine));
     Type varType = typeFromName(n.typeName);
@@ -170,7 +170,7 @@ void SemanticAnalyzer::visit(VarDeclNode& n) {
 //  ReturnStmt — resolve return-value type, check vs function
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(ReturnStmtNode& n) {
-    TraceScope ts(recorder_, "SemanticAnalyzer::visit(ReturnStmtNode&)",
+    TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(ReturnStmtNode&)",
                   "at line " + std::to_string(n.span.startLine));
     if (!n.value) {
         // bare 'return;'
@@ -213,7 +213,7 @@ void SemanticAnalyzer::visit(ReturnStmtNode& n) {
 //  errors. Only emit a new error when BOTH sides resolved.
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(BinaryExprNode& n) {
-    TraceScope ts(recorder_, "SemanticAnalyzer::visit(BinaryExprNode&)",
+    TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(BinaryExprNode&)",
                   "operator '" + n.op + "'");
     Type leftType  = resolveType(*n.left);
     Type rightType = resolveType(*n.right);
@@ -252,7 +252,7 @@ void SemanticAnalyzer::visit(BinaryExprNode& n) {
 //  the write).
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(AssignmentExprNode& n) {
-    TraceScope ts(recorder_, "SemanticAnalyzer::visit(AssignmentExprNode&)",
+    TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(AssignmentExprNode&)",
                   "target '" + n.name + "'");
     const Symbol* sym = symbols_.lookup(n.name);
 
@@ -297,7 +297,7 @@ void SemanticAnalyzer::visit(AssignmentExprNode& n) {
 //  Identifier — look up in symbol table
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(IdentifierNode& n) {
-    TraceScope ts(recorder_, "SemanticAnalyzer::visit(IdentifierNode&)",
+    TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(IdentifierNode&)",
                   "resolving '" + n.name + "'");
     const Symbol* sym = symbols_.lookup(n.name);
 

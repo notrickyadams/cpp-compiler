@@ -48,6 +48,7 @@ bool ConstantFoldingPass::run(IRFunction& fn) {
         int result;
         if (foldConstants(instr.op, instr.src1.constValue,
                                      instr.src2.constValue, result)) {
+#ifndef CPPC_NO_PROVENANCE
             // Provenance: the replacement must keep the original's
             // source span (it still comes from the same source
             // expression) and record what it used to be — rebuilding
@@ -61,6 +62,11 @@ bool ConstantFoldingPass::run(IRFunction& fn) {
             instr.span = span;
             instr.note = prior;
             instr.appendNote("folded from '" + before + "' (ConstantFolding)");
+#else
+            // Ablated build (overhead experiments) — rewrite only.
+            instr = IRInstruction::makeCopy(instr.dest,
+                                             IRValue::makeConst(result));
+#endif
             changed = true;
         }
     }

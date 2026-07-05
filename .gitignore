@@ -4,3 +4,6 @@ build/
 *.obj
 *.pdb
 .vs/
+
+# experiment artifacts (binaries, corpus, raw CSVs) — regenerable via tools/measure.ps1
+experiments/

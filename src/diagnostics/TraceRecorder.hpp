@@ -94,3 +94,23 @@ public:
 private:
     TraceRecorder& r_;
 };
+
+// ── TRACE_SCOPE — the only sanctioned way to open a frame ────
+//
+// Call sites use this macro rather than declaring a TraceScope
+// directly, for exactly one reason: honest ablation. The overhead
+// experiments (docs/experiments.md, E1/E2) compare builds with
+// recording compiled OUT via -DCPPC_NO_TRACE. A no-op TraceScope
+// class would still evaluate its argument expressions — the detail
+// strings built at every call site ("at '" + lexeme + "' ...") —
+// and so would understate the mechanism's true cost. The macro
+// erases the arguments too. Uglier than plain RAII at the call
+// site; chosen because measurement honesty outranks style here.
+#define CPPC_TRACE_CONCAT_IMPL(a, b) a##b
+#define CPPC_TRACE_CONCAT(a, b) CPPC_TRACE_CONCAT_IMPL(a, b)
+#ifndef CPPC_NO_TRACE
+#define TRACE_SCOPE(...) \
+    TraceScope CPPC_TRACE_CONCAT(_traceScope_, __LINE__)(__VA_ARGS__)
+#else
+#define TRACE_SCOPE(...) ((void)0)
+#endif

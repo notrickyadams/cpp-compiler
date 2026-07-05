@@ -1,5 +1,35 @@
 CXX      := g++
-CXXFLAGS := -std=c++14 -Wall -Wextra -Wpedantic -g
+
+# OPT: extra optimisation/codegen flags. Empty for dev builds; the
+# overhead experiments pass OPT=-O2 so measurements reflect an
+# optimised binary, not -g -O0 string-handling artefacts.
+OPT      ?=
+CXXFLAGS := -std=c++14 -Wall -Wextra -Wpedantic -g $(OPT)
+
+# ── Ablation configs (overhead experiments — docs/experiments.md) ──
+#   mingw32-make CONFIG=notrace|noprov|baseline OPT=-O2 compiler
+#
+#   full (default) : recording + provenance ON — the real compiler.
+#   notrace        : TRACE_SCOPE compiled out (incl. its argument
+#                    expressions)  -> isolates trace-recording cost.
+#   noprov         : span stamping + optimizer notes compiled out
+#                    -> isolates provenance cost.
+#   baseline       : both off -> the conventional-compiler baseline.
+#
+#   Ablated configs exist ONLY for measurement. Trace-content and
+#   provenance tests fail there BY DESIGN (curated fallback replaces
+#   recorded traces; spans read 0) — run the test suite against the
+#   default config only.
+CONFIG ?= full
+ifeq ($(CONFIG),notrace)
+CXXFLAGS += -DCPPC_NO_TRACE
+endif
+ifeq ($(CONFIG),noprov)
+CXXFLAGS += -DCPPC_NO_PROVENANCE
+endif
+ifeq ($(CONFIG),baseline)
+CXXFLAGS += -DCPPC_NO_TRACE -DCPPC_NO_PROVENANCE
+endif
 
 SRC_DIR  := src
 TEST_DIR := tests
