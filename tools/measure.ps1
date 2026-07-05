@@ -105,8 +105,13 @@ foreach ($cfg in $configs) {
         for ($r = 1; $r -le $MemRuns; $r++) {
             $p = Start-Process -FilePath $exe -ArgumentList "`"$src`" --json" `
                     -RedirectStandardOutput $nulOut -PassThru -NoNewWindow
+            # Cache the handle BEFORE WaitForExit: without it, .NET may
+            # never open the process handle and ExitCode reads $null —
+            # and ($null -ne 0) is $true, so a SUCCESSFUL compile threw
+            # "compile failed". Verified both ways on this machine.
+            $null = $p.Handle
             $p.WaitForExit()
-            if ($p.ExitCode -ne 0) { throw "compile failed (mem): $cfg $size" }
+            if ($p.ExitCode -ne 0) { throw "compile failed (mem): $cfg $size exit=$($p.ExitCode)" }
             $memory.Add([pscustomobject]@{
                 config    = $cfg; size = $size; run = $r
                 peakBytes = $p.PeakWorkingSet64
