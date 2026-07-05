@@ -190,6 +190,78 @@ static int compileFile(const std::string& inputPath, const std::string& outputPa
 }
 
 // ============================================================
+//  checkFile — compile-only mode (gcc's -fsyntax-only analogue,
+//  except it runs the WHOLE pipeline through assembly text).
+//
+//  Exists for two reasons:
+//    1. It is the honest measurement target for the overhead
+//       experiments (docs/experiments.md, E1/E2). Timing --json
+//       measured PowerShell consuming megabytes of serialized
+//       pipeline state, not the compiler — the first campaign's
+//       numbers were incoherent (ablated configs "slower" than
+//       full) and were discarded. --check does every stage's real
+//       work and prints NOTHING on success, so a Stopwatch around
+//       the process measures the pipeline and only the pipeline.
+//    2. It is independently useful: validate a file and get the
+//       full diagnostic report without producing artifacts.
+//
+//  The generated assembly is built and discarded — codegen is part
+//  of the pipeline under measurement; only the OS-facing Toolchain
+//  step (whose g++ subprocess would dwarf everything) is skipped.
+// ============================================================
+static int checkFile(const std::string& inputPath) {
+    std::ifstream in(inputPath);
+    if (!in) {
+        std::cerr << "error: could not open '" << inputPath << "'\n";
+        return 1;
+    }
+    std::stringstream buf;
+    buf << in.rdbuf();
+    const std::string src = buf.str();
+
+    DiagnosticCollector collector;
+
+    Lexer lexer(src);
+    auto lexOut = lexer.tokenize();
+    collector.addAll(lexOut.diagnostics);
+    if (collector.hasErrors()) {
+        collector.render(std::cerr, src);
+        return 1;
+    }
+
+    Parser parser(lexOut.output);
+    auto parseOut = parser.parse();
+    collector.addAll(parseOut.diagnostics);
+    if (collector.hasErrors()) {
+        collector.render(std::cerr, src);
+        return 1;
+    }
+
+    SemanticAnalyzer analyzer;
+    auto semOut = analyzer.analyze(*parseOut.output);
+    collector.addAll(semOut.diagnostics);
+    if (collector.hasErrors()) {
+        collector.render(std::cerr, src);
+        return 1;
+    }
+    if (collector.totalCount() > 0) {
+        collector.render(std::cerr, src);  // warnings, same as compileFile
+    }
+
+    IRGenerator irgen;
+    IRProgram ir = irgen.generate(*parseOut.output);
+
+    Optimizer optimizer;
+    optimizer.optimize(ir);
+
+    AssemblyGenerator codegen;
+    AssemblyProgram asmProg = codegen.generate(ir);
+    (void)asmProg;  // built and discarded — see header comment
+
+    return 0;
+}
+
+// ============================================================
 //  compileToJson — Stage 8: feeds the visualizer.
 //
 //  Runs the same pipeline as compileFile(), minus the final
@@ -324,12 +396,15 @@ int main(int argc, char** argv) {
         std::string inputPath  = argv[1];
         std::string outputPath = "a.exe";
         bool        jsonMode   = false;
+        bool        checkMode  = false;
         for (int i = 2; i < argc; ++i) {
             std::string arg = argv[i];
             if (arg == "-o" && i + 1 < argc)      outputPath = argv[++i];
             else if (arg == "--json")             jsonMode = true;
+            else if (arg == "--check")            checkMode = true;
         }
-        if (jsonMode) return compileToJson(inputPath);
+        if (checkMode) return checkFile(inputPath);
+        if (jsonMode)  return compileToJson(inputPath);
         return compileFile(inputPath, outputPath);
     }
 

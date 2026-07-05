@@ -106,6 +106,13 @@ def main():
     ap.add_argument("--mutants", default="experiments/mutants")
     args = ap.parse_args()
 
+    # CreateProcess rejects RELATIVE FORWARD-SLASH executable paths
+    # (WinError 2 with the file plainly present) — the Python-level
+    # cousin of the cmd.exe "build/x.exe" quirk this project hit in
+    # its C++ test helpers. Arguments are unaffected; only argv[0]
+    # is resolved by CreateProcess. Absolutize it once.
+    args.compiler = os.path.abspath(args.compiler)
+
     os.makedirs("experiments/out", exist_ok=True)
     tmp = "experiments/out/_e3_tmp.cpp"
     lines = []

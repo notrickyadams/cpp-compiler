@@ -40,7 +40,12 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-$configs = $Configs
+# powershell -File binds "a,b,c" to [string[]] as ONE element (comma
+# splitting is PS-native syntax, not -File argument syntax) — the
+# first multi-config run built a single pseudo-config literally named
+# "full,notrace,noprov,baseline". Split defensively so both call
+# styles work.
+$configs = @($Configs | ForEach-Object { $_ -split "," } | Where-Object { $_ })
 $sizes   = @(100, 1000, 5000, 20000)
 
 New-Item -ItemType Directory -Force experiments\bin    | Out-Null
@@ -78,11 +83,17 @@ foreach ($cfg in $configs) {
     foreach ($size in $sizes) {
         $src = "experiments\corpus\p$size.cpp"
         Write-Output "timing: $cfg / $size lines"
-        for ($w = 0; $w -lt $WarmUps; $w++) { & $exe $src --json *> $null }
+        # --check, not --json: check mode runs the full pipeline
+        # through assembly text but prints NOTHING on success, so
+        # the Stopwatch measures the compiler. Timing --json pushed
+        # megabytes of serialized state through PowerShell's
+        # pipeline and produced incoherent numbers (ablated configs
+        # "slower" than full) — that dataset was discarded.
+        for ($w = 0; $w -lt $WarmUps; $w++) { & $exe $src --check }
         if ($LASTEXITCODE -ne 0) { throw "compile failed: $cfg $size" }
         for ($r = 1; $r -le $Runs; $r++) {
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
-            & $exe $src --json *> $null
+            & $exe $src --check
             $sw.Stop()
             if ($LASTEXITCODE -ne 0) { throw "compile failed: $cfg $size run $r" }
             $timing.Add([pscustomobject]@{
@@ -96,31 +107,44 @@ $timing | Export-Csv experiments\out\timing.csv -NoTypeInformation -Append
 
 # ── 4. E2: peak working set ──────────────────────────────────
 $memory = New-Object System.Collections.Generic.List[object]
-$nulOut = Join-Path $root "experiments\out\_discard.json"
 foreach ($cfg in $configs) {
     $exe = Join-Path $root "experiments\bin\compiler_$cfg.exe"
     foreach ($size in $sizes) {
         $src = Join-Path $root "experiments\corpus\p$size.cpp"
         Write-Output "memory: $cfg / $size lines"
         for ($r = 1; $r -le $MemRuns; $r++) {
-            $p = Start-Process -FilePath $exe -ArgumentList "`"$src`" --json" `
-                    -RedirectStandardOutput $nulOut -PassThru -NoNewWindow
+            $p = Start-Process -FilePath $exe -ArgumentList "`"$src`" --check" `
+                    -PassThru -NoNewWindow
             # Cache the handle BEFORE WaitForExit: without it, .NET may
             # never open the process handle and ExitCode reads $null —
             # and ($null -ne 0) is $true, so a SUCCESSFUL compile threw
             # "compile failed". Verified both ways on this machine.
             $null = $p.Handle
+            # PeakWorkingSet64 is NOT readable after exit (all 80 rows
+            # of the first campaign came back empty) — it must be
+            # sampled while the process lives. The counter is
+            # monotonic, so the last successful read is the peak up to
+            # that moment; a tight refresh loop loses at most the last
+            # few hundred microseconds of growth.
+            $peak = 0
+            while (-not $p.HasExited) {
+                try {
+                    $v = $p.PeakWorkingSet64
+                    if ($v -gt $peak) { $peak = $v }
+                } catch {}
+                $p.Refresh()
+            }
             $p.WaitForExit()
             if ($p.ExitCode -ne 0) { throw "compile failed (mem): $cfg $size exit=$($p.ExitCode)" }
+            if ($peak -eq 0) { throw "no memory sample captured: $cfg $size run $r (process too short?)" }
             $memory.Add([pscustomobject]@{
                 config    = $cfg; size = $size; run = $r
-                peakBytes = $p.PeakWorkingSet64
+                peakBytes = $peak
             })
         }
     }
 }
 $memory | Export-Csv experiments\out\memory.csv -NoTypeInformation -Append
-Remove-Item $nulOut -ErrorAction SilentlyContinue
 
 Write-Output "done ($($configs -join ',')): experiments\out\timing.csv, memory.csv"
 Write-Output "after the last chunk: python tools\analyze.py"

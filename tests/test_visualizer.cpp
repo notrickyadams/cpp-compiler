@@ -182,6 +182,42 @@ TEST("end-to-end: irDetail fields are empty arrays when IR never ran", [](){
     ASSERT_TRUE(j.find("\"irDetailAfter\": []")  != std::string::npos);
 });
 
+// ============================================================
+//  --check mode: full pipeline, no artifacts, silent on success.
+//  This is the overhead experiments' measurement target, so its
+//  contract (exit code + silence) is load-bearing — a stray print
+//  on the success path would contaminate every timing run.
+// ============================================================
+
+TEST("end-to-end: --check exits 0 and prints nothing for a valid program", [](){
+    std::ofstream src("build/viz_chk_ok.cpp");
+    src << "int main() {\n    int x = 5;\n    return x + 2;\n}\n";
+    src.close();
+
+    int exit = std::system("build\\compiler.exe build/viz_chk_ok.cpp --check "
+                           "> build/viz_chk_ok.txt 2>&1");
+    ASSERT_EQ(exit, 0);
+    std::ifstream f("build/viz_chk_ok.txt");
+    std::stringstream ss;
+    ss << f.rdbuf();
+    ASSERT_TRUE(ss.str().empty());
+});
+
+TEST("end-to-end: --check exits nonzero with full diagnostics for an invalid program", [](){
+    std::ofstream src("build/viz_chk_bad.cpp");
+    src << "int main() {\n    return y;\n}\n";
+    src.close();
+
+    int exit = std::system("build\\compiler.exe build/viz_chk_bad.cpp --check "
+                           "> build/viz_chk_bad.txt 2>&1");
+    ASSERT_TRUE(exit != 0);
+    std::ifstream f("build/viz_chk_bad.txt");
+    std::stringstream ss;
+    ss << f.rdbuf();
+    ASSERT_TRUE(ss.str().find("ERROR TYPE:") != std::string::npos);
+    ASSERT_TRUE(ss.str().find("Undeclared Identifier") != std::string::npos);
+});
+
 int main() {
     return RUN_ALL_TESTS();
 }
