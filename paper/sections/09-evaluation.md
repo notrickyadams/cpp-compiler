@@ -109,20 +109,37 @@ Overhead vs baseline (95% bootstrap CI):
 | 5,000 | 17.4% [13.9, 19.9] | 1.1% [−2.5, 3.2] | 17.2% [14.6, 20.0] |
 | 20,000 | 19.0% [11.8, 28.3] | 2.3% [−5.5, 8.3] | 16.3% [8.6, 24.5] |
 
-Three results. (1) **Lazy recording is statistically free**: 1–2%
-at every size with every CI spanning or nearly spanning zero — down
-from +143%, a ~60× reduction, achieved with no loss of output (the
-trace-content tests pin byte-identical details and passed unchanged,
-205/205). (2) **Provenance costs a steady 12–17%** — the honest
-correction of the blocked campaigns' contradictory readings (−1.2%
-and +19.9% were both drift). The cost is structural, not incidental:
-`span` + `note` enlarge every `IRInstruction`, so every copy, move,
-and pass traversal pays, and codegen builds provenance text per
-instruction. Reduction paths (smaller span representation, gated
-comment emission) are future work, not hand-waving: the fields are
-value-carried by design (D10), and that design's price is now a
-number. (3) The costs compose additively (19.0 ≈ 2.3 + 16.3),
-consistent with independent mechanisms.
+Three results, with their cross-campaign caveat stated first:
+absolute times are not comparable between campaigns (baselines moved
+with machine state across sessions); every comparison here is
+*within* one internally-controlled campaign, and the naive-vs-lazy
+arc compares relative overheads, each measured against its own
+contemporaneous baseline.
+
+(1) **Lazy recording is statistically free**: 1–2% at every size
+with every CI spanning zero — down from +143%, a ~60× reduction,
+achieved with no loss of output (the trace-content tests pin
+byte-identical details and passed unchanged, 205/205).
+(2) **Provenance costs a steady 12–17%** — the honest correction of
+the blocked campaigns' contradictory readings (−1.2% and +19.9% were
+both drift). The cost is structural and now grounded, not
+conjectured: adding `span` + `note` grew `sizeof(IRInstruction)`
+from 116 to 160 bytes (+38%; 20 bytes of span, 24 of MinGW's
+`std::string`, measured), so every vector element, copy, and pass
+traversal moves more data, and codegen additionally builds
+provenance text per instruction. Reduction paths (a compressed span
+representation; gating comment emission) are future work with a
+target number attached, not hand-waving: the fields are
+value-carried by design (D10), and that design's price is measured.
+(3) At startup-amortized sizes the costs compose additively
+(20k: 19.0 ≈ 2.3 + 16.3; 5k: 17.4 vs 18.3), consistent with
+independent mechanisms; the 100-line row does *not* compose (6.7 vs
+13.2 summed) — at 25 ms total runtime, process startup dominates and
+the CIs are too wide for attribution, which is why the size ladder
+exists. The 20k CIs are themselves wide ([11.8, 28.3] for FULL);
+tightening them means more runs at the largest size, noted as a
+cheap improvement rather than done, since no conclusion here turns
+on the difference between 15% and 20%.
 
 **Memory (E2).** Peak working set is unaffected throughout: ≤1.3%
 delta at every size in every campaign (interleaved, 20k: 85.8 MiB
@@ -133,8 +150,14 @@ space.
 ## 9.3 Diagnostic quality (E3/E4)
 
 **E3 — structural completeness (component presence, not quality).**
-Nine single-error programs through both compilers on identical
-inputs; mechanical detection rules only. Ours presents location,
+E3's epistemic role must be stated precisely: it is a structural
+*inventory*, not a comparison study. That our output contains the
+sections we designed is near-tautological; the informative content
+is the contrast *shape* — which explanation components a
+conventional pipeline emits at all — and the confirmation that no
+component silently fails to render on any error class. Nine
+single-error programs through both compilers on identical inputs;
+mechanical detection rules only. Ours presents location,
 cause, explanation prose, fix suggestions, trace, and caret on 9/9
 (plus invalid/valid examples exactly on the two malformed-expression
 cases, where the kind defines them); GCC 6.3.0 presents location,
@@ -167,7 +190,10 @@ future fixes); (2) g++ is slightly tighter on this corpus; (3) the
 accepted sets differ because the *languages* differ (C permits `;;`
 and `{{`; this language does not), so the distributions are not over
 identical mutant sets — an intersection-set statistic is listed as a
-refinement in §13. Framing: cascading error reporting is a
+refinement in §13; (4) all 100 mutants derive from a single 78-line
+seed, so mutation diversity is bounded by one program's token
+population — a multi-seed corpus is the other §13 refinement, and no
+generalization beyond this corpus is claimed. Framing: cascading error reporting is a
 quantified problem in the recovery literature [cite: Diekmann &
 Tratt 2020]; our contribution here is the *property-test* treatment,
 not a recovery algorithm.
@@ -184,7 +210,7 @@ architecture's priorities, measured.
 ## 9.4 The test suite as evidence
 
 205 tests (598+ assertions) function as more than regression cover:
-the trace-accuracy tests are the *proof mechanism* for H2 (they
+the trace-accuracy tests are the *evidence mechanism* for H2 (they
 assert runtime facts no static chain could contain, and their
 failure at the curated→recorded transition is documented evidence
 the traces changed nature); the cascade tests pin the quality
