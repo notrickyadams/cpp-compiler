@@ -76,22 +76,37 @@ if (-not $SkipCorpus) {
     }
 }
 
-# ── 3. E1: timing ────────────────────────────────────────────
+# ── 3. E1: timing (INTERLEAVED) ──────────────────────────────
+# --check, not --json: check mode runs the full pipeline through
+# assembly text but prints NOTHING on success, so the Stopwatch
+# measures the compiler. Timing --json pushed megabytes of
+# serialized state through PowerShell's pipeline and produced
+# incoherent numbers — that dataset was discarded.
+#
+# Configs are interleaved ROUND-ROBIN within each run index (with
+# the cycle order rotated per run to cancel position bias), not
+# measured as sequential per-config blocks. The blocked protocol
+# was fine while mechanism costs dwarfed environmental drift, but
+# after the lazy-recorder optimisation the drift DOMINATED: one
+# blocked campaign showed medians decreasing monotonically in run
+# order across configs (the machine simply got faster as the
+# campaign progressed), flattering whichever config ran last.
+# Interleaving spreads drift evenly across all configs.
 $timing = New-Object System.Collections.Generic.List[object]
-foreach ($cfg in $configs) {
-    $exe = "experiments\bin\compiler_$cfg.exe"
-    foreach ($size in $sizes) {
-        $src = "experiments\corpus\p$size.cpp"
-        Write-Output "timing: $cfg / $size lines"
-        # --check, not --json: check mode runs the full pipeline
-        # through assembly text but prints NOTHING on success, so
-        # the Stopwatch measures the compiler. Timing --json pushed
-        # megabytes of serialized state through PowerShell's
-        # pipeline and produced incoherent numbers (ablated configs
-        # "slower" than full) — that dataset was discarded.
+foreach ($size in $sizes) {
+    $src = "experiments\corpus\p$size.cpp"
+    Write-Output "timing (interleaved): $size lines"
+    foreach ($cfg in $configs) {
+        $exe = "experiments\bin\compiler_$cfg.exe"
         for ($w = 0; $w -lt $WarmUps; $w++) { & $exe $src --check }
         if ($LASTEXITCODE -ne 0) { throw "compile failed: $cfg $size" }
-        for ($r = 1; $r -le $Runs; $r++) {
+    }
+    for ($r = 1; $r -le $Runs; $r++) {
+        $rot = $r % $configs.Count
+        $order = $configs[$rot..($configs.Count-1)] + $configs[0..($rot-1)]
+        if ($rot -eq 0) { $order = $configs }
+        foreach ($cfg in $order) {
+            $exe = "experiments\bin\compiler_$cfg.exe"
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             & $exe $src --check
             $sw.Stop()

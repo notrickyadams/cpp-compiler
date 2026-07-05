@@ -52,7 +52,7 @@ void SemanticAnalyzer::visit(ProgramNode& n) {
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(FunctionDeclNode& n) {
     TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(FunctionDeclNode&)",
-                  "function '" + n.name + "'");
+                  TraceDetail::str("function '", n.name, "'"));
     currentFunctionName_       = n.name;
     currentFunctionReturnType_ = typeFromName(n.returnType);
 
@@ -120,8 +120,8 @@ void SemanticAnalyzer::visit(BlockStmtNode& n) {
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(VarDeclNode& n) {
     TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(VarDeclNode&)",
-                  "declaring '" + n.name + "' at line " +
-                  std::to_string(n.span.startLine));
+                  TraceDetail::strLine("declaring '", n.name,
+                                       "' at line ", n.span.startLine, ""));
     Type varType = typeFromName(n.typeName);
 
     // ── Check 1: redeclaration ────────────────────────────
@@ -171,7 +171,7 @@ void SemanticAnalyzer::visit(VarDeclNode& n) {
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(ReturnStmtNode& n) {
     TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(ReturnStmtNode&)",
-                  "at line " + std::to_string(n.span.startLine));
+                  TraceDetail::line("at line ", n.span.startLine));
     if (!n.value) {
         // bare 'return;'
         if (!currentFunctionReturnType_.isVoid()) {
@@ -214,7 +214,7 @@ void SemanticAnalyzer::visit(ReturnStmtNode& n) {
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(BinaryExprNode& n) {
     TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(BinaryExprNode&)",
-                  "operator '" + n.op + "'");
+                  TraceDetail::str("operator '", n.op, "'"));
     Type leftType  = resolveType(*n.left);
     Type rightType = resolveType(*n.right);
 
@@ -253,7 +253,7 @@ void SemanticAnalyzer::visit(BinaryExprNode& n) {
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(AssignmentExprNode& n) {
     TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(AssignmentExprNode&)",
-                  "target '" + n.name + "'");
+                  TraceDetail::str("target '", n.name, "'"));
     const Symbol* sym = symbols_.lookup(n.name);
 
     if (!sym) {
@@ -298,7 +298,7 @@ void SemanticAnalyzer::visit(AssignmentExprNode& n) {
 // ────────────────────────────────────────────────────────────
 void SemanticAnalyzer::visit(IdentifierNode& n) {
     TRACE_SCOPE(recorder_,"SemanticAnalyzer::visit(IdentifierNode&)",
-                  "resolving '" + n.name + "'");
+                  TraceDetail::str("resolving '", n.name, "'"));
     const Symbol* sym = symbols_.lookup(n.name);
 
     if (!sym) {

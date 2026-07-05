@@ -80,7 +80,7 @@ StageOutput<std::unique_ptr<ProgramNode>> Parser::parse() {
 std::unique_ptr<FunctionDeclNode> Parser::parseFunctionDecl() {
     SourceSpan startSpan = current().span();
     TRACE_SCOPE(recorder_,"Parser::parseFunctionDecl()",
-                  "starting at line " + std::to_string(startSpan.startLine));
+                  TraceDetail::line("starting at line ", startSpan.startLine));
 
     std::string retType = parseTypeName();
 
@@ -160,7 +160,7 @@ std::unique_ptr<BlockStmtNode> Parser::parseBlock() {
 //  Grammar: var_decl | return_stmt
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<ASTNode> Parser::parseStatement() {
-    TRACE_SCOPE(recorder_,"Parser::parseStatement()", here());
+    TRACE_SCOPE(recorder_,"Parser::parseStatement()", hereDetail());
     if (isTypeName())                     return parseVarDecl();
     if (check(TokenType::KW_RETURN))      return parseReturnStmt();
 
@@ -180,7 +180,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<VarDeclNode> Parser::parseVarDecl() {
     SourceSpan startSpan = current().span();
-    TRACE_SCOPE(recorder_,"Parser::parseVarDecl()", here());
+    TRACE_SCOPE(recorder_,"Parser::parseVarDecl()", hereDetail());
 
     std::string typeName  = parseTypeName();
     Token       nameTok   = expect(TokenType::IDENTIFIER,
@@ -231,7 +231,7 @@ std::unique_ptr<VarDeclNode> Parser::parseVarDecl() {
 //  generic "expected ';', found '2'".
 // ────────────────────────────────────────────────────────────
 std::unique_ptr<ReturnStmtNode> Parser::parseReturnStmt() {
-    TRACE_SCOPE(recorder_,"Parser::parseReturnStmt()", here());
+    TRACE_SCOPE(recorder_,"Parser::parseReturnStmt()", hereDetail());
     Token kwTok = expect(TokenType::KW_RETURN, "'return'");
 
     auto node  = std::make_unique<ReturnStmtNode>();
@@ -400,7 +400,7 @@ std::unique_ptr<ASTNode> Parser::parseMultiplication() {
 }
 
 std::unique_ptr<ASTNode> Parser::parsePrimary() {
-    TRACE_SCOPE(recorder_,"Parser::parsePrimary()", here());
+    TRACE_SCOPE(recorder_,"Parser::parsePrimary()", hereDetail());
 
     // Integer literal
     if (check(TokenType::INTEGER_LITERAL)) {
@@ -494,12 +494,19 @@ const Token& Parser::current() const {
 // precedence levels (equality..multiplication) cannot fail on their
 // own, so they are deliberately not recorded — omitting a frame
 // never falsifies the path, it only shortens it.
-std::string Parser::here() const {
+TraceDetail Parser::hereDetail() const {
     const Token& t = current();
-    std::string what = t.lexeme.empty()
-        ? tokenTypeName(t.type)
-        : "'" + t.lexeme + "'";
-    return "at " + what + " (line " + std::to_string(t.line) + ")";
+    if (t.lexeme.empty()) {
+        // Rare path (EOF / synthetic tokens): tokenTypeName() returns a
+        // temporary, and TraceDetail must not depend on lexer headers —
+        // pay for an eager string here rather than couple the layers.
+        return TraceDetail::eagerStr("at " + tokenTypeName(t.type) +
+                                     " (line " + std::to_string(t.line) + ")");
+    }
+    // Hot path: zero allocations. t.lexeme lives in tokens_, which
+    // outlives every frame that can point at it (see TraceRecorder's
+    // lifetime note); t.line is captured by value at scope entry.
+    return TraceDetail::strLine("at '", t.lexeme, "' (line ", t.line, ")");
 }
 
 Token Parser::advance() {

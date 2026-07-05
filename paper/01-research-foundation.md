@@ -42,12 +42,16 @@ automated tests?
   Evidence: ~320 LOC / 5.6% of compiler source for both mechanisms (E5).
 - **H2:** recorded traces are execution-accurate (contain runtime
   facts unobtainable by static per-kind lookup). Evidence: tests.
-- **H3:** always-on overhead is small. **Measured verdict: REFUTED
-  for the naive eager-string implementation (~2.4x wall time at 20k
-  lines; provenance alone ~free; memory <=1.3%).** Repaired via lazy
-  detail formatting (D14); optimized numbers pending — H3 final form:
-  "small AFTER a lazy-formatting design; naive recording is not
-  viable, and we quantify why."
+- **H3:** always-on overhead is small. **Final verdict (interleaved
+  protocol): REFUTED for naive eager-string recording (+143% at 20k
+  lines); REPAIRED by lazy detail formatting (D14) to 1-2% with CIs
+  spanning zero (~60x reduction, byte-identical output). Provenance
+  is NOT free — a steady 12-17% (both blocked campaigns' readings
+  were drift artifacts) — so the full architecture costs ~15-19%
+  wall time and <=1.3% memory.** H3 final form: "recording is free
+  after a lazy-formatting design; the residual cost of the
+  architecture is provenance's per-instruction fields, quantified
+  and attributable."
 - **H4:** (with a study) explanations aid users — NOT claimed.
 
 ## Contributions (post-Phase-2 revision, adversarially narrowed)

@@ -96,7 +96,7 @@ private:
 
     // Short "at 'lexeme' (line N)" description of the current token,
     // used as the detail on recorded trace frames.
-    std::string here() const;
+    TraceDetail hereDetail() const;
 
     // ── State ─────────────────────────────────────────────
     std::vector<Token>       tokens_;

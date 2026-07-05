@@ -240,8 +240,11 @@ the disease as the cure) and fixed-size `snprintf` buffers (kills the
 allocation but keeps per-scope formatting work and truncates
 unpredictably). The materialized strings are byte-identical to the
 eager versions — the trace-content tests pin them, and passed
-unchanged across the transition. Measured effect: §9.2 [⚠ wire in
-final numbers].
+unchanged across the transition. Measured effect (§9.2, interleaved
+protocol): recording cost fell from +143% [130, 168] to 1–2% with
+confidence intervals spanning zero at every corpus size — a ~60×
+reduction, leaving recording statistically indistinguishable from
+free while producing identical output.
 
 ## 6.4 Provenance to emitted assembly
 
@@ -277,12 +280,14 @@ The four saved locals are the cost of inline provenance made visible:
 every rewriting pass owes this discipline. A side table would trade
 those four lines for an identity-tracking problem across in-place
 rewrites and DCE's vector rebuild — a worse debt, but a real
-alternative for pass-heavy compilers. Costs of inline fields:
-per-instruction memory whether or not an error occurs (measured ≤
-~1.3% peak working set, §9.2), and `toString()` had to stay
-byte-stable so thirty golden IR tests survived; provenance display
-therefore lives in separate channels (structured JSON, assembly
-comments) rather than in the canonical text.
+alternative for pass-heavy compilers. Costs of inline fields, both
+measured (§9.2): the enlarged instruction makes every copy, move,
+and pass traversal pay — a steady 12–17% wall time — while peak
+memory stays ≤1.3%; provenance's price is time, not space. And
+`toString()` had to stay byte-stable so thirty golden IR tests
+survived; provenance display therefore lives in separate channels
+(structured JSON, assembly comments) rather than in the canonical
+text.
 
 **D11 — Accumulated string notes vs. structured remark records.**
 Passes append human-readable notes ("`t1 -> 20 (CopyPropagation)`").
@@ -318,9 +323,11 @@ text artifacts (assembly comments, JSON) only.
 Verification ledger: all v1 ⚠ items resolved (16 factory methods;
 28.2% LOC share at 48b5054 — re-measure at submission; LLVM
 Programmer's Manual citation wired into D2; fallback-unreachable
-claim verified by grep). Open: D14 final numbers from §9.2; F4
-figure source = recorded-trace probe output; cross-refs D4→§10,
-D11→§13 present.
+claim verified by grep; D14 numbers wired from the interleaved
+campaign). Note for D10's cost sentence: provenance's measured
+price is ~12–17% TIME (E2 shows memory ≤1.3%) — keep D10 and §9.2
+consistent on this. Open: F4 figure source = recorded-trace probe
+output; cross-refs D4→§10, D11→§13 present.
 
 Peer-review round 1 (five-hat) applied as R1-R6 in v2; round 2 due
 after v3 numbers land.
