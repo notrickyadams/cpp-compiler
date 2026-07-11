@@ -20,6 +20,11 @@ conversation; artifacts live here so nothing exists only in chat).
 | 4 — §7 Visualization | [sections/07-visualization.md](sections/07-visualization.md) | draft v1 — consumer framing; F6 at session D |
 | 4 — §8 Implementation | [sections/08-implementation.md](sections/08-implementation.md) | draft v1 — fresh LOC (5,943; diagnostics 29.3%) |
 | — Figure F1 | [figures/F1-diagnostic.md](figures/F1-diagnostic.md) | captured from full build; callout anchors + caption |
+| 4 — §10 Discussion | [sections/10-discussion.md](sections/10-discussion.md) | draft v1 — KB ceiling, trace depth, provenance-in-context, retrofit asymmetry, LLM speculation flagged |
+| 4 — §11 Threats | [sections/11-threats.md](sections/11-threats.md) | draft v1 — four validity classes; binary-layout confound bounded |
+| 4 — §12 Limitations | [sections/12-limitations.md](sections/12-limitations.md) | draft v1 — ten numbered facts with consequences |
+| 4 — §13 Future Work | [sections/13-future-work.md](sections/13-future-work.md) | draft v1 — full user-study design (power-from-pilot); extensions with target numbers |
+| 4 — §14 Conclusion | [sections/14-conclusion.md](sections/14-conclusion.md) | draft v1 — no new claims |
 | 4 — §6 Architecture | [sections/06-explanation-architecture.md](sections/06-explanation-architecture.md) | draft v3 — D1-D14, final numbers wired |
 | 5 — Experiments | [../docs/experiments.md](../docs/experiments.md), [../docs/results-naive.md](../docs/results-naive.md) | E1-E5 complete; 3 protocol iterations (--json discarded → blocked → interleaved) |
 | 4 — §9 Evaluation | [sections/09-evaluation.md](sections/09-evaluation.md) | draft v1 complete — final interleaved tables; peer-review round pending |
