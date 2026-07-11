@@ -12,6 +12,8 @@ conversation; artifacts live here so nothing exists only in chat).
 | 1 — Research foundation | [01-research-foundation.md](01-research-foundation.md) | approved (3 user decisions recorded) |
 | 2 — Literature review | [02-literature-review.md](02-literature-review.md) | approved; DOI finalisation pending |
 | 3 — Outline | [03-outline.md](03-outline.md) | approved (4 section merges) |
+| 4 — §1/§2 Title+Abstract | [sections/02-title-abstract.md](sections/02-title-abstract.md) | draft v1 — title picked (veto welcome) |
+| 4 — §3 Introduction | [sections/03-introduction.md](sections/03-introduction.md) | draft v1 — reviewed once; F1 dependency noted |
 | 4 — §6 Architecture | [sections/06-explanation-architecture.md](sections/06-explanation-architecture.md) | draft v3 — D1-D14, final numbers wired |
 | 5 — Experiments | [../docs/experiments.md](../docs/experiments.md), [../docs/results-naive.md](../docs/results-naive.md) | E1-E5 complete; 3 protocol iterations (--json discarded → blocked → interleaved) |
 | 4 — §9 Evaluation | [sections/09-evaluation.md](sections/09-evaluation.md) | draft v1 complete — final interleaved tables; peer-review round pending |

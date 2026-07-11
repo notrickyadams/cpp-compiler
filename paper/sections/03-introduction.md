@@ -1,0 +1,125 @@
+# §3 Introduction — draft v1
+
+During this compiler's development, its semantic analyzer detected a
+program defect and told no one. The program was `int main() { int x
+= 5; }` — a non-void function that never returns. The analyzer's
+internal log recorded the failure precisely ("bare return in
+non-void function"); no diagnostic was ever constructed from that
+knowledge; compilation "succeeded"; and the produced binary returned
+whatever value happened to occupy the return register. The compiler
+knew. The user didn't. We found the defect not by reading the code
+but by running twenty adversarial programs against the finished
+compiler — and we report it as the paper's motivating observation
+because it is the general phenomenon in miniature: **the evidence
+behind compiler diagnostics is routinely discarded before, or
+instead of, reaching the user.** What a conventional pipeline
+retains at the point of failure — a message string and a source
+location — is a small projection of what it knew moments earlier:
+the construct being analyzed, the rule being applied, the path taken
+to get there, and what became of the user's code in every stage
+downstream.
+
+This is not the familiar complaint that error messages are unhelpful.
+Message *quality* has received sustained attention in production
+compilers — Rust's structured suggestions, Elm's celebrated prose,
+GHC's migration to errors-as-values [→§5] — and a substantial
+research literature examines message effectiveness, with notably
+contested results: controlled studies of *enhanced* messages report
+effects ranging from ineffectual to inconclusive [cite: Denny et al.
+2014; Pettit et al. 2017]. We take that contestation seriously: this
+paper makes no claim that its diagnostics help users more, and the
+user study such a claim requires is designed but not run (§13). Our
+question is upstream of wording, and architectural: **what must a
+compiler retain, and where must it retain it, for explanation to be
+possible at all — and what does retaining it cost?**
+
+Two scope commitments frame everything that follows. First, the
+vehicle is a deliberately small compiler: a C-like kernel language
+(integers, arithmetic, functions without calls) compiled through a
+complete pipeline — lexing, recursive-descent parsing, semantic
+analysis, three-address IR, three optimization passes run to a fixed
+point, and 32-bit x86 code generation to a linked executable. The
+contribution is the architecture and its measured costs, not a
+production technique; scaling questions are discussed, not claimed
+away (§10). Second, "explanation" here means *preserved compiler
+evidence* — recorded execution paths, provenance, root causes — not
+post-hoc rationalization, and not machine-learning explainability.
+
+The architecture rests on one obligation: no stage may discard the
+evidence a future explanation would need. Concretely (Fig. F1 shows
+one diagnostic carrying all of it): every stage returns its product
+*and* its diagnostics, so partial results survive errors; a
+diagnostic is a structured value — kind, severity, span, root cause,
+explanation, fixes, examples, trace — never a string; all prose
+lives in one knowledge base indexed by root cause, so the taxonomy
+is the explanation index; each stage owns a trace recorder whose
+RAII scopes capture the *actual* execution path, snapshotted at the
+moment a diagnostic is created; every IR instruction carries its
+source span and accumulates notes from the optimizer passes that
+transform it, surfacing as source-line comments in the emitted
+assembly; and the properties that make diagnostics trustworthy —
+one mistake yields one diagnostic; traces contain runtime facts —
+are regression tests, not aspirations.
+
+Making that architecture honest required measuring it, and the
+measurements pushed back. Our first overhead campaign measured the
+harness, not the compiler, and was discarded (§9.2 explains how, so
+readers do not repeat it). The second refuted our own hypothesis:
+naive trace recording — eagerly building detail strings at every
+scope entry — cost 2.4× compile time at 20k lines, dominated by two
+scopes per token in the lexer. The repair (lazy detail formatting
+over caller-owned data, exploiting the fact that snapshots occur
+only while frames are open) brought recording to 1–2% with
+confidence intervals spanning zero, with byte-identical output.
+Provenance, by contrast, is *not* free: a steady 12–17%, mechanical
+in origin — the span and note fields grow every IR instruction from
+116 to 160 bytes, and every copy and traversal pays. We also report
+what provenance cannot promise: per-instruction history is not
+transitive under dead-code elimination (a folded instruction's
+history dies with it once propagation makes it dead), and our
+cascade-freedom invariants, while holding on every tested shape,
+leave a measured residual — 3% of single-fault mutants still
+produce three or more diagnostics.
+
+This paper contributes:
+
+- **C1 — an architectural pattern for explanation-oriented
+  compilation:** the five-role diagnostic core (root-cause taxonomy,
+  factory, isolated knowledge base, multi-target rendering) over a
+  pipeline-wide output-plus-diagnostics contract — presented as the
+  distilled, designed-in form of a structure production compilers
+  (GHC, Rust) have been converging toward by retrofit [→§5].
+- **C2 — execution-recorded diagnostic traces:** RAII scope
+  recording with snapshot-at-creation and a curated fallback that is
+  provably unreachable in the pipeline; with the lazy-formatting
+  design that makes always-on recording statistically free, and the
+  measurements for both designs.
+- **C3 — end-to-end provenance under the same contract:** source
+  spans and transformation notes surviving to emitted assembly —
+  conceding LLVM's optimization remarks as production-scale prior
+  art for the mechanism, and contributing its unification with the
+  diagnostic architecture, its measured price, and the DCE
+  non-transitivity finding.
+- **C4 — diagnostic quality as executable invariants:** property-
+  level tests (cascade-freedom, trace accuracy) distinct from
+  golden-output snapshots, with mutation testing quantifying the
+  frontier they do not yet cover.
+
+§4 fixes vocabulary and the language; §5 positions against five
+literature clusters; §6 presents the architecture as fourteen
+design decisions, each argued against a rejected alternative; §7
+describes the visualization consumer; §8 the implementation; §9 the
+three-iteration measurement campaign and quality studies; §§10–13
+discuss scaling, validity, limitations, and future work, including
+the designed user study; §14 concludes.
+
+<!-- Working notes (stripped at submission):
+verification — anecdote: commit history (fix in 2b97a63; found by
+20-case probe run); "twenty adversarial programs": session record;
+2.4x/1-2%/12-17%/116->160/3%: §9 v1.1 tables; "two scopes per
+token": Lexer.cpp sites; unreachable fallback: grep-verified (§6
+D8); GHC/Rust/Elm/LLVM: §5 sources (Phase 2, verified). Peer-review
+round 1 findings applied in-draft: scope paragraph placed 3rd per
+outline; XAI defusal present; negative results advertised, not
+buried. Open for v2: F1 must exist before this section is final;
+consider trimming P4 (architecture paragraph) if page budget tightens. -->
