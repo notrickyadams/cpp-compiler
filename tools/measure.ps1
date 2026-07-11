@@ -161,5 +161,12 @@ foreach ($cfg in $configs) {
 }
 $memory | Export-Csv experiments\out\memory.csv -NoTypeInformation -Append
 
+# Leave no ablated binary behind: the last config built above stays
+# in build\compiler.exe otherwise (it was the BASELINE binary once,
+# and a probe against it silently showed fallback traces — nothing
+# was wrong except the binary being an experiment artifact).
+mingw32-make clean | Out-Null
+
 Write-Output "done ($($configs -join ',')): experiments\out\timing.csv, memory.csv"
 Write-Output "after the last chunk: python tools\analyze.py"
+Write-Output "note: build\ was cleaned; rebuild with mingw32-make for dev use"

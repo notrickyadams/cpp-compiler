@@ -14,7 +14,12 @@ conversation; artifacts live here so nothing exists only in chat).
 | — Reference registry | [references.md](references.md) | numbered [1]-[26]; verified-only numbering; debt list explicit |
 | 3 — Outline | [03-outline.md](03-outline.md) | approved (4 section merges) |
 | 4 — §1/§2 Title+Abstract | [sections/02-title-abstract.md](sections/02-title-abstract.md) | draft v1 — title picked (veto welcome) |
-| 4 — §3 Introduction | [sections/03-introduction.md](sections/03-introduction.md) | draft v1 — reviewed once; F1 dependency noted |
+| 4 — §3 Introduction | [sections/03-introduction.md](sections/03-introduction.md) | draft v1 — reviewed once; F1 now exists |
+| 4 — §4 Background | [sections/04-background.md](sections/04-background.md) | draft v1 — grammar verbatim; textbook cite in debt |
+| 4 — §5 Related Work | [sections/05-related-work.md](sections/05-related-work.md) | draft v1 — concessions-first; T2 matrix; author-name discipline |
+| 4 — §7 Visualization | [sections/07-visualization.md](sections/07-visualization.md) | draft v1 — consumer framing; F6 at session D |
+| 4 — §8 Implementation | [sections/08-implementation.md](sections/08-implementation.md) | draft v1 — fresh LOC (5,943; diagnostics 29.3%) |
+| — Figure F1 | [figures/F1-diagnostic.md](figures/F1-diagnostic.md) | captured from full build; callout anchors + caption |
 | 4 — §6 Architecture | [sections/06-explanation-architecture.md](sections/06-explanation-architecture.md) | draft v3 — D1-D14, final numbers wired |
 | 5 — Experiments | [../docs/experiments.md](../docs/experiments.md), [../docs/results-naive.md](../docs/results-naive.md) | E1-E5 complete; 3 protocol iterations (--json discarded → blocked → interleaved) |
 | 4 — §9 Evaluation | [sections/09-evaluation.md](sections/09-evaluation.md) | draft v1 complete — final interleaved tables; peer-review round pending |
