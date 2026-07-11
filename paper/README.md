@@ -20,6 +20,8 @@ conversation; artifacts live here so nothing exists only in chat).
 | 4 — §7 Visualization | [sections/07-visualization.md](sections/07-visualization.md) | draft v1 — consumer framing; F6 at session D |
 | 4 — §8 Implementation | [sections/08-implementation.md](sections/08-implementation.md) | draft v1 — fresh LOC (5,943; diagnostics 29.3%) |
 | — Figure F1 | [figures/F1-diagnostic.md](figures/F1-diagnostic.md) | captured from full build; callout anchors + caption |
+| — Figures F2–F5 | [figures/F2-F5-diagram-sources.md](figures/F2-F5-diagram-sources.md) | fact-ledgered diagram sources; render at assembly |
+| — Figures F6–F7 | [figures/F6-F7-notes.md](figures/F6-F7-notes.md), [figures/F7-overhead.svg](figures/F7-overhead.svg) | F7 generated + self-checking vs §9 tables; F6 capture protocol |
 | 4 — §10 Discussion | [sections/10-discussion.md](sections/10-discussion.md) | draft v1 — KB ceiling, trace depth, provenance-in-context, retrofit asymmetry, LLM speculation flagged |
 | 4 — §11 Threats | [sections/11-threats.md](sections/11-threats.md) | draft v1 — four validity classes; binary-layout confound bounded |
 | 4 — §12 Limitations | [sections/12-limitations.md](sections/12-limitations.md) | draft v1 — ten numbered facts with consequences |
