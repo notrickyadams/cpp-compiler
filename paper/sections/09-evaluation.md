@@ -157,7 +157,9 @@ is the contrast *shape* — which explanation components a
 conventional pipeline emits at all — and the confirmation that no
 component silently fails to render on any error class. Nine
 single-error programs through both compilers on identical inputs;
-mechanical detection rules only. Ours presents location,
+mechanical detection rules only (the presence-rubric approach
+descends from the error-message evaluation instrument of [13],
+narrowed from judging responses to detecting components). Ours presents location,
 cause, explanation prose, fix suggestions, trace, and caret on 9/9
 (plus invalid/valid examples exactly on the two malformed-expression
 cases, where the kind defines them); GCC 6.3.0 presents location,
@@ -166,8 +168,7 @@ any of the nine. Two scope statements keep this honest: the baseline
 is the 2016 toolchain this compiler targets — no claim is made
 against current GCC/Clang without running them — and presence is not
 helpfulness; the enhanced-messages literature is contested on the
-latter [cite: Denny et al. 2014; Pettit et al. 2017], which is
-precisely why the paper measures the former.
+latter [1, 2], which is precisely why the paper measures the former.
 
 **E4 — cascade behavior under single-fault mutation.** 100 mutants,
 each exactly one token-level edit from a valid seed (delete /
@@ -194,9 +195,8 @@ refinement in §13; (4) all 100 mutants derive from a single 78-line
 seed, so mutation diversity is bounded by one program's token
 population — a multi-seed corpus is the other §13 refinement, and no
 generalization beyond this corpus is claimed. Framing: cascading error reporting is a
-quantified problem in the recovery literature [cite: Diekmann &
-Tratt 2020]; our contribution here is the *property-test* treatment,
-not a recovery algorithm.
+quantified problem in the recovery literature [6]; our contribution
+here is the *property-test* treatment, not a recovery algorithm.
 
 **E5 — invasiveness.** From the introducing commit's diff, compiler
 source only: trace recording ≈200 lines (recorder + three stage
@@ -209,7 +209,7 @@ architecture's priorities, measured.
 
 ## 9.4 The test suite as evidence
 
-205 tests (598+ assertions) function as more than regression cover:
+205 tests (603 assertions) function as more than regression cover:
 the trace-accuracy tests are the *evidence mechanism* for H2 (they
 assert runtime facts no static chain could contain, and their
 failure at the curated→recorded transition is documented evidence

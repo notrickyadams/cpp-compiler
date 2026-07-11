@@ -33,8 +33,8 @@ means (the parser synthesizes placeholder nodes; the analyzer types
 what it can and poisons the rest with `unknown`), and downstream code
 must tolerate it. Production compilers pay the same cost for the same
 reason — multi-error reporting has been standard since panic-mode
-recovery [cite: Diekmann & Tratt 2020 for the modern treatment and
-its failure mode, cascading]. Evidence: `StageOutput<T>` in
+recovery; see [6] for the modern treatment and its quantified
+failure mode, cascading. Evidence: `StageOutput<T>` in
 `src/diagnostics/Diagnostic.hpp`; the parser's recovery paths and the
 cascade-freedom tests they carry.
 
@@ -52,8 +52,7 @@ a category error with a friendly font. The cost: three idioms to
 learn, and the boundary must be policed in review. The split mirrors
 LLVM's separation of recoverable errors ("an error in the program's
 environment... a missing file", handled via `Expected<T>`/`Error`)
-from its diagnostic subsystem [cite: LLVM Programmer's Manual,
-error-handling section]. Our own history enforces the boundary's
+from its diagnostic subsystem [7]. Our own history enforces the boundary's
 value: the one failure that *was* misfiled (missing-return, logged
 internally as neither diagnostic nor error) produced the
 silent-garbage defect that motivates §3.
@@ -83,7 +82,7 @@ a missing obligation (warning, GCC's `-Wreturn-type` choice). The
 rejected alternative, message-granularity codes, is the shape
 string-based systems drift into; GHC's and Rust's retrofits both
 converged on cause-indexed identifiers with public indexes
-[cite: Haskell Error Index; GHC #18516; Rust RFC 1644]. Benefit: the
+[8, 4, 3]. Benefit: the
 taxonomy *is* the explanation index. Cost, honestly carried in the
 header: taxonomy discipline requires admitting unreachable entries;
 five kinds are marked `[reserved]` in
@@ -96,10 +95,10 @@ one component, `ExplanationBuilder`, switch-indexed by kind and
 parameterized by runtime detail. Emit-site prose (each stage writes
 its own sentences) was rejected because it makes consistency
 unenforceable and translation impossible — the exact pathology GHC
-documents in its `SDoc`-era retrofit discussion [cite: Well-Typed
-2021; GHC #18516]. The heavier alternative — an external message DSL
-(Clang's TableGen `.td` files; rustc's Fluent) — was rejected *at
-this scale*: it buys tooling and i18n at the price of a build step
+documents in its `SDoc`-era retrofit discussion [9, 4]. The heavier
+alternative — an external message DSL (Clang's TableGen `.td` files
+[ref: E-debt Clang]; rustc's Fluent [10]) — was rejected *at this
+scale*: it buys tooling and i18n at the price of a build step
 and an indirection layer, for seventeen kinds. The cost of our middle
 position surfaced measurably: the builder's `detail`/`detail2`
 interface hit its capacity limit the first time a kind needed three
@@ -128,8 +127,7 @@ rejected as the root discard-point: once prose, always prose. The
 measured consequence of late rendering is that CLI and visualizer
 provably tell one story (they consume the same struct; Fig. F6), and
 machine consumers get fields, not regexes — the property GHC's and
-Rust's JSON emitters retrofitted at cost [cite: rustc JSON docs; GHC
-errors-as-values]. Cost: the struct is the compatibility surface;
+Rust's JSON emitters retrofitted at cost [12, 4]. Cost: the struct is the compatibility surface;
 adding a field touches all three renderers (the trace `detail`
 field's addition did exactly that, in one commit).
 
@@ -155,7 +153,7 @@ grounds: an event log grows with program size whether or not an error
 ever occurs, while the active-stack snapshot is O(depth) and paid
 only at diagnostic creation; the Whyline demonstrates the power of
 full traces for *program* debugging and also their price, a dedicated
-post-hoc analysis apparatus [cite: Ko & Myers 2008]. Disclosed cost
+post-hoc analysis apparatus [11]. Disclosed cost
 of our choice: sibling context is invisible (completed frames are
 gone from the stack). The entry cost of open frames is the subject of
 D14 and §9.2 — the naive version of this design failed its own
@@ -292,9 +290,8 @@ text.
 **D11 — Accumulated string notes vs. structured remark records.**
 Passes append human-readable notes ("`t1 -> 20 (CopyPropagation)`").
 The structured alternative is exactly what LLVM ships — typed remark
-objects serialized to YAML with dedicated viewers [cite: LLVM
-Remarks; `-fsave-optimization-record`] — and we concede it is the
-scalable form. Strings were chosen because at this scale the consumer
+objects serialized to YAML with dedicated viewers [5] — and we
+concede it is the scalable form. Strings were chosen because at this scale the consumer
 is a human reading a panel or a `.s` file, and a remark schema would
 be structure nothing downstream parses. The choice exposed a genuine
 finding the structured design would *also* exhibit: per-instruction

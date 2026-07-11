@@ -30,7 +30,7 @@ provenance survives lowering and optimization into the emitted
 assembly; and diagnostic-quality properties — cascade-freedom, trace
 accuracy — are enforced as executable tests. We validate the
 architecture in a complete, zero-dependency compiler for a C-like
-kernel language (~5.5K LOC, 205 tests) and measure its costs
+kernel language (~5.7K LOC, 205 tests) and measure its costs
 factorially: naive always-on trace recording cost 2.4× compile time
 and was repaired to statistical insignificance by lazy detail
 formatting; provenance costs a steady 12–17%, attributable to
@@ -44,5 +44,6 @@ run.
 
 <!-- verification: every number cross-checked against §9 v1.1;
      "2.4x" = +143% total-recording row (NOPROV, naive, 20k);
-     LOC re-measure at submission (5,409 at audit, 5,720 at 0b995e7 —
-     abstract says ~5.5K deliberately). -->
+     LOC: 5,720 measured at 0b995e7 -> "~5.7K" (audit 2026-07-11
+     corrected an earlier ~5.5K understatement); re-measure at
+     submission. -->

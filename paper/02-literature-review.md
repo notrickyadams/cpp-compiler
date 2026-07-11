@@ -55,7 +55,9 @@ may be cited from memory alone.
 
 **Error localization**
 - Zhang & Myers, "Toward General Diagnosis of Static Errors",
-  POPL 2014; SHErrLoc, TOPLAS 39(4) 2017 (10.1145/3121137).
+  POPL 2014, pp. 569-582, 10.1145/2535838.2535870 (page range
+  corrected 2026-07-11 against dblp; an earlier note said 569-581);
+  SHErrLoc, TOPLAS 39(4) 2017 (10.1145/3121137).
 - "Diagnosing Type Errors with Class", PLDI 2015 (10.1145/2737924.2738009).
 - "Practical SMT-Based Type Error Localization", ICFP 2015
   (10.1145/2784731.2784765).

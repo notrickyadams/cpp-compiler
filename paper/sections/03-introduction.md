@@ -21,12 +21,11 @@ downstream.
 
 This is not the familiar complaint that error messages are unhelpful.
 Message *quality* has received sustained attention in production
-compilers — Rust's structured suggestions, Elm's celebrated prose,
-GHC's migration to errors-as-values [→§5] — and a substantial
-research literature examines message effectiveness, with notably
-contested results: controlled studies of *enhanced* messages report
-effects ranging from ineffectual to inconclusive [cite: Denny et al.
-2014; Pettit et al. 2017]. We take that contestation seriously: this
+compilers — Rust's structured suggestions [3], GHC's migration to
+errors-as-values [4] [→§5] — and a substantial research literature
+examines message effectiveness, with notably contested results:
+controlled studies of *enhanced* messages report effects ranging
+from ineffectual to inconclusive [1, 2]. We take that contestation seriously: this
 paper makes no claim that its diagnostics help users more, and the
 user study such a claim requires is designed but not run (§13). Our
 question is upstream of wording, and architectural: **what must a
@@ -88,7 +87,7 @@ This paper contributes:
   factory, isolated knowledge base, multi-target rendering) over a
   pipeline-wide output-plus-diagnostics contract — presented as the
   distilled, designed-in form of a structure production compilers
-  (GHC, Rust) have been converging toward by retrofit [→§5].
+  (GHC, Rust) have been converging toward by retrofit [3, 4] [→§5].
 - **C2 — execution-recorded diagnostic traces:** RAII scope
   recording with snapshot-at-creation and a curated fallback that is
   provably unreachable in the pipeline; with the lazy-formatting
@@ -96,9 +95,9 @@ This paper contributes:
   measurements for both designs.
 - **C3 — end-to-end provenance under the same contract:** source
   spans and transformation notes surviving to emitted assembly —
-  conceding LLVM's optimization remarks as production-scale prior
-  art for the mechanism, and contributing its unification with the
-  diagnostic architecture, its measured price, and the DCE
+  conceding LLVM's optimization remarks [5] as production-scale
+  prior art for the mechanism, and contributing its unification with
+  the diagnostic architecture, its measured price, and the DCE
   non-transitivity finding.
 - **C4 — diagnostic quality as executable invariants:** property-
   level tests (cascade-freedom, trace accuracy) distinct from
@@ -114,6 +113,9 @@ discuss scaling, validity, limitations, and future work, including
 the designed user study; §14 concludes.
 
 <!-- Working notes (stripped at submission):
+reference audit 2026-07-11: [n] numbers per paper/references.md
+(provisional order; renumber at assembly). Elm clause deliberately
+removed pending blog-source verification (registry debt list).
 verification — anecdote: commit history (fix in 2b97a63; found by
 20-case probe run); "twenty adversarial programs": session record;
 2.4x/1-2%/12-17%/116->160/3%: §9 v1.1 tables; "two scopes per
