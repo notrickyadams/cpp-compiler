@@ -24,10 +24,11 @@ size, §9.2). Temporal drift dominated one whole campaign before the
 interleaved protocol; interleaving spreads residual drift across
 configs but cannot remove it. The bootstrap uses a fixed seed
 (reproducibility over seed-sensitivity; re-running with other seeds
-is one flag). The measurement harness itself produced four Windows-
-specific artifacts before yielding trustworthy data (§8.4, §9.2) —
-we found each by coherence checking, and cannot rule out a fifth we
-did not trigger.
+is one flag). The measurement harness itself produced a family of
+platform artifacts before yielding trustworthy data — the
+process-management quirks of §8.4 and the measurement-channel
+contamination of the discarded campaign (§9.2) — each found by
+coherence checking; we cannot rule out another we did not trigger.
 
 **External validity.** One tiny language, one implementation, one
 machine, one OS, one 2016 toolchain. The corpus is author-generated,

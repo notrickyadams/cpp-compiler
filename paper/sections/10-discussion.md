@@ -68,9 +68,9 @@ underneath.
 GHC's and Rust's structured-diagnostics migrations [4, 9, 3] are the
 strongest external evidence this architecture addresses a real need
 — and the strongest evidence about cost asymmetry. Their retrofits
-required years of coordinated change across entrenched string-based
-call sites; our designed-in version cost ≈320 lines and 5.6% of a
-(small) codebase (§8.2). The honest generalization is not "designing
+are multi-year, multi-release migrations across entrenched
+string-based call sites [4, 9]; our designed-in version cost ≈320
+lines and 5.6% of a (small) codebase (§8.2). The honest generalization is not "designing
 in is cheap" — our codebase was shaped to receive it — but
 narrower: the *marginal* cost of the explanation contract is small
 when the failure-handling architecture is decided early, and grows

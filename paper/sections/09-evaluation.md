@@ -204,8 +204,9 @@ integrations + surfacing), provenance ≈115 lines (IR fields,
 generator stamping, two pass-preservation sites, assembly comments,
 JSON export) — ≈320 lines across 17 files, 5.6% of compiler source,
 supporting H1's "localized mechanisms" claim with a number. The
-diagnostics subsystem overall is 28.2% of compiler source — the
-architecture's priorities, measured.
+diagnostics subsystem overall was 28.2% of compiler source at the
+mechanism-introducing commit and 29.3% at the time of writing —
+§8.1 traces the growth — the architecture's priorities, measured.
 
 ## 9.4 The test suite as evidence
 

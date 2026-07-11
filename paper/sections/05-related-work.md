@@ -19,8 +19,11 @@ but a distillation; our claims are that designing it in from the
 first commit is cheap (§8), that the isolated knowledge base and
 root-cause-granularity taxonomy are the load-bearing choices (§6,
 D3–D4), and that the retrofit pain documented by these projects [4,
-9] is evidence the pattern matters. What none of these systems
-provides is the recorded per-diagnostic execution trace of §6.3.
+9] is evidence the pattern matters. To our knowledge, none of these systems
+provides the recorded per-diagnostic execution trace of §6.3 — the
+claim the pre-submission counterexample sweep exists to attack
+(registry debt; if the sweep finds prior art, this sentence and C2
+narrow accordingly).
 
 ## 5.2 Optimization transparency and provenance
 

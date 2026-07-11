@@ -318,7 +318,8 @@ text artifacts (assembly comments, JSON) only.
 ## Working notes (stripped at submission)
 
 Verification ledger: all v1 ⚠ items resolved (16 factory methods;
-28.2% LOC share at 48b5054 — re-measure at submission; LLVM
+LOC share now maintained in §8.1, which supersedes the 28.2%
+snapshot noted here earlier; LLVM
 Programmer's Manual citation wired into D2; fallback-unreachable
 claim verified by grep; D14 numbers wired from the interleaved
 campaign). Note for D10's cost sentence: provenance's measured
