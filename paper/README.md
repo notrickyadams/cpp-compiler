@@ -32,3 +32,25 @@ conversation; artifacts live here so nothing exists only in chat).
 
 Primary: SLE / Onward!. Education venues (SPLASH-E/SIGCSE) become an
 option if the future-work user study is ever run.
+
+## Road to the final paper (state: 2026-07-11)
+
+Done: all experiments (E1-E5, 3 protocol iterations), §6 v3, §9 v1.1
+(each five-hat-reviewed once), evidence docs, this tracker.
+
+| # | Work session | Deliverable |
+|---|---|---|
+| A | §3 Introduction + §2 Abstract + title pick (coupled; unblocked now that evaluation exists) | sections/02,03 |
+| B | §4 Background, §5 Related Work prose, §7 Visualization, §8 Implementation — mostly transcription of verified material | four short sections |
+| C | §10 Discussion, §11 Threats, §12 Limitations, §13 Future Work (incl. full user-study design), §14 Conclusion | honesty block |
+| D | Figures F1-F7 (F7 scripted from CSVs; diagrams as code) + tables T1-T8 final | figures/ |
+| E | References: DOI verification pass, C2 counterexample sweep (VL/HCC, ICSME/SANER), BibTeX | references.bib |
+| F | Phase 7 assembly: acmart LaTeX (compile on Overleaf; no local TeX assumed) + cross-consistency pass | paper/latex/ |
+| G | Phase 8: full-paper five-hat review + revisions | submission-ready v1 |
+
+Estimate: ~7 focused sessions at the current cadence — roughly one
+to two weeks of elapsed collaboration. Explicitly OUTSIDE this
+estimate: external advisor/co-author review, venue-specific
+formatting quirks, artifact-evaluation packaging (~1 extra session),
+and any decision to collect more data (e.g. more 20k runs to tighten
+CIs, multi-seed E4).
