@@ -70,15 +70,19 @@ of our diagnostic (the span and root-cause selection), while our
 architecture governs how the whole explanation is assembled,
 preserved, and delivered. The Whyline [11, 21] pioneered
 why/why-not questions over *program* executions via tracing and
-slicing; we ask the interrogative question of the *compiler's own
-run* — a far shallower trace, recorded live at negligible cost
-(§9.2) rather than reconstructed by post-hoc analysis.
+slicing, a family that extends into education through trace-
+divergence debugging of student code [30]; we ask the interrogative
+question of the *compiler's own run* — a far shallower trace,
+recorded live at negligible cost (§9.2) rather than reconstructed by
+post-hoc analysis.
 
 ## 5.5 Compiler visualization in education
 
-Tools visualizing compiler internals for teaching include AST
-construction animators [22], interactive stage simulations [23],
-and, recently, JIT IR-evolution explorers [24]. Our visualizer (§7)
+The lineage is old — the UW Illustrated Compiler graphically
+displayed its own control and data structures to students in 1988
+[28] — and continues through AST construction animators [22],
+interactive stage simulations [23], and, recently, JIT IR-evolution
+explorers [24]. Our visualizer (§7)
 sits in this lineage as a *consumer* of the architecture rather than
 a contribution: its distinguishing property is that every panel
 renders the same structured values the CLI renders, because the

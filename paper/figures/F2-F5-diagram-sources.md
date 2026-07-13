@@ -110,26 +110,33 @@ stored as pointers/values at entry and formatted only here (D14).*
 ```
 source (line 2):  return (2 + 3) * 4;
 
-IR before                     after ConstantFolding      after CopyPropagation      after DCE
-[2] t0 = 2 + 3            →   [2] t0 = 5                 [2] t0 = 5                 (removed — dead,
-                              ; folded from 't0 = 2+3'   ; folded from 't0 = 2+3'    note dies with it)
-[2] t1 = t0 * 4           →   [2] t1 = t0 * 4        →   [2] t1 = 5 * 4         →   [2] t1 = 20 †
-                                                         ; t0 -> 5 (CopyProp)       ; (folded †, prior note kept)
-[2] return t1                 [2] return t1              [2] return t1          →   [2] return 20
-                                                                                    ; t1 -> 20 (CopyProp)
+IR before              iteration 1                       iteration 2                        final (fixed point)
+[2] t0 = 2 + 3         CF: [2] t0 = 5                    (t0 gone)
+                           ; folded from 't0 = 2 + 3'
+[2] t1 = t0 * 4        CP: [2] t1 = 5 * 4                CF: [2] t1 = 20                    (t1 gone — its fold AND
+                           ; t0 -> 5 (CopyProp)              ; t0->5 (CopyProp);             prop notes die with it)
+                       DCE: t0 removed                       ; folded from 't1 = 5 * 4'
+                            (fold note dies with t0)     CP: [2] return 20
+[2] return t1              [2] return t1                     ; t1 -> 20 (CopyProp)          [2] return 20
+                                                         DCE: t1 removed                        ; t1 -> 20 (CopyProp)
 ```
 
 Fact ledger: [2] = span.startLine stamped at lowering and preserved
 by every rewrite (D10, quoted listing); note texts are the exact
-appendNote strings (ConstantFoldingPass/CopyPropagationPass); the
-final surviving history shows ONLY propagation — the folded t0's
-note was removed WITH t0 by DCE (the † instruction's own fold note
-survives because t1 itself survives one more round). The
-non-transitivity finding (§6.4, §12 item 3) is the red annotation at
-assembly. Iteration structure = the fixed-point walkthrough
-validated by test_optimizer's pipeline test; regenerate the exact
-final-state notes from `--json` irDetail at submission (a live probe
-during drafting matched this ledger for the surviving instructions).
+appendNote strings (ConstantFoldingPass/CopyPropagationPass). The
+FINAL state is a SINGLE instruction — `return 20` carrying only the
+propagation note — matching the optimizer's tested fixed-point
+result ("return 2+3 folds to a single return"-family tests and the
+visualizer suite's surviving-note assertion). Note-death happens
+TWICE: t0's fold note dies in iteration 1's DCE, and t1's
+accumulated fold+prop notes die in iteration 2's DCE — the
+non-transitivity finding (§6.4, §12 item 3), which the assembly-time
+rendering annotates. REVIEW CORRECTION (cross-section review 2,
+2026-07-13): an earlier version of this ledger drew the final state
+with TWO surviving instructions (t1 = 20 kept alongside return 20) —
+iteration snapshot conflated with fixed point; caught against the
+tested irAfter and fixed. Regenerate exact final-state notes from
+`--json` irDetail at submission.
 
 Caption draft: *Provenance under optimization for (2+3)*4. Source
 line [2] survives every rewrite; transformation notes accumulate —

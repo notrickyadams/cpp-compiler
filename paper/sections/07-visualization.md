@@ -2,7 +2,9 @@
 
 The visualizer exists in this paper as *evidence about the
 architecture*, not as a contribution in the visualization lineage it
-belongs to (§5.5). Its claim is narrow: because explanation is
+belongs to — a lineage reaching back to the UW Illustrated Compiler,
+which displayed its own control and data structures to students in
+1988 [28] (§5.5). Its claim is narrow: because explanation is
 preserved as structured data (§6), building a full-pipeline
 inspection surface required no new information channels — only
 renderers.

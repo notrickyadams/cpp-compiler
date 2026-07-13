@@ -11,7 +11,7 @@ conversation; artifacts live here so nothing exists only in chat).
 | 0 — Repository audit | [00-repository-audit.md](00-repository-audit.md) | approved |
 | 1 — Research foundation | [01-research-foundation.md](01-research-foundation.md) | approved (3 user decisions recorded) |
 | 2 — Literature review | [02-literature-review.md](02-literature-review.md) | approved; DOI finalisation pending |
-| — Reference registry | [references.md](references.md) | numbered [1]-[26]; verified-only numbering; debt list explicit |
+| — Reference registry | [references.md](references.md) | [1]-[30], all author lists confirmed; C2 sweep performed (negative); residual debt = BibTeX-export mechanics |
 | 3 — Outline | [03-outline.md](03-outline.md) | approved (4 section merges) |
 | 4 — §1/§2 Title+Abstract | [sections/02-title-abstract.md](sections/02-title-abstract.md) | draft v1 — title picked (veto welcome) |
 | 4 — §3 Introduction | [sections/03-introduction.md](sections/03-introduction.md) | draft v1 — reviewed once; F1 now exists |

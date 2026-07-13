@@ -91,7 +91,11 @@ configs round-robin within each run index, rotating cycle order to
 cancel position bias. Blocked data is archived, not used.
 
 **Lazy recorder (D14), interleaved protocol — the authoritative
-table.** Median ± MAD, ms:
+table.** Fig. F7 plots both campaigns' overhead on one shared scale
+(the flat right panel is the repair); the figure is generated from
+the raw CSVs by a script that hard-asserts every plotted median
+against the tables below, so figure and paper cannot silently
+diverge. Median ± MAD, ms:
 
 | lines | baseline | notrace | noprov | full |
 |---|---|---|---|---|

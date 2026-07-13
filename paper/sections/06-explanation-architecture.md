@@ -147,7 +147,8 @@ this fabricated provenance. The replacement: each stage owns a
 `TraceRecorder`; methods at decision points open RAII scopes carrying
 runtime detail ("function 'main'", "at 'return' (line 3)"); when the
 factory builds a diagnostic it snapshots the frames *currently open*
-(`src/diagnostics/TraceRecorder.hpp`). The third option — logging
+(`src/diagnostics/TraceRecorder.hpp`; Fig. F4 traces the sequence
+for the Fig. F1 diagnostic). The third option — logging
 every event, not just the live stack — was rejected on cost and noise
 grounds: an event log grows with program size whether or not an error
 ever occurs, while the active-stack snapshot is O(depth) and paid
@@ -298,7 +299,8 @@ finding the structured design would *also* exhibit: per-instruction
 history is **not transitive**. When DCE removes a folded instruction
 whose constant was already propagated onward, its ConstantFolding
 note dies with it; the surviving instruction reports only the
-propagation step. Both the optimizer and visualizer suites lock this
+propagation step (Fig. F5 walks the fixed-point iterations for
+`(2+3)*4`). Both the optimizer and visualizer suites lock this
 behavior in as documented semantics rather than accident — and it
 delimits what per-instruction provenance can ever promise without a
 dataflow-chained design (Future Work, §13).
