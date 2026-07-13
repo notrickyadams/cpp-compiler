@@ -97,7 +97,7 @@ its own sentences) was rejected because it makes consistency
 unenforceable and translation impossible — the exact pathology GHC
 documents in its `SDoc`-era retrofit discussion [9, 4]. The heavier
 alternative — an external message DSL (Clang's TableGen `.td` files
-[ref: E-debt Clang]; rustc's Fluent [10]) — was rejected *at this
+[27]; rustc's Fluent [10]) — was rejected *at this
 scale*: it buys tooling and i18n at the price of a build step
 and an indirection layer, for seventeen kinds. The cost of our middle
 position surfaced measurably: the builder's `detail`/`detail2`

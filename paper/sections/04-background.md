@@ -69,7 +69,7 @@ lowering to a flat three-address IR, three optimization passes
 together to a fixed point, code generation to 32-bit x86 assembly
 text, and an OS-facing driver that assembles and links a real
 executable via the system toolchain. The construction follows
-standard practice throughout [ref: E-debt textbook]; nothing in the
+standard practice throughout [29]; nothing in the
 pipeline itself is claimed as a contribution. What §6 adds is the
 explanation obligation threaded through every one of these stages —
 and §9 the bill for it.

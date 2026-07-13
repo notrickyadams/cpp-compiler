@@ -104,68 +104,117 @@ verification is stated, not hidden.
      Messages?" ICSE 2017. DOI 10.1109/ICSE.2017.59.
      Verified: authors/title/venue/DOI (Phase 2).
 
-[16] B. A. Becker et al. "On Designing Programming Error Messages
-     for Novices: Readability and its Constituent Factors."
+[16] P. Denny, J. Prather, B. A. Becker, C. Mooney, J. Homer,
+     Z. C. Albrecht, G. B. Powell. "On Designing Programming Error
+     Messages for Novices: Readability and its Constituent Factors."
      CHI 2021. DOI 10.1145/3411764.3445696.
-     Verified: title/venue/DOI (Phase 2); full author list session E.
+     Verified: FULL RECORD (2026-07-13). NOTE: registry previously
+     said "Becker et al." — Denny is first author; corrected.
 
 [17] D. Zhang, A. C. Myers. "Toward General Diagnosis of Static
      Errors." POPL 2014, pp. 569-582. DOI 10.1145/2535838.2535870.
      Verified: authors/title/venue/pages/DOI (2026-07-11).
 
-[18] D. Zhang, A. C. Myers, et al. "SHErrLoc: A Static Holistic
-     Error Locator." ACM TOPLAS 39(4), 2017. DOI 10.1145/3121137.
-     Verified: title/venue/DOI (Phase 2); full author list session E.
+[18] D. Zhang, A. C. Myers, D. Vytiniotis, S. Peyton-Jones.
+     "SHErrLoc: A Static Holistic Error Locator." ACM TOPLAS 39(4),
+     Article 18, Aug 2017. DOI 10.1145/3121137.
+     Verified: FULL RECORD (2026-07-13).
 
-[19] "Diagnosing Type Errors with Class." PLDI 2015.
+[19] D. Zhang, A. C. Myers, D. Vytiniotis, S. Peyton Jones.
+     "Diagnosing Type Errors with Class." PLDI 2015.
      DOI 10.1145/2737924.2738009.
-     Verified: title/venue/DOI (Phase 2). AUTHORS NOT YET VERIFIED —
-     confirm at session E before any author-name mention in prose.
+     Verified: FULL RECORD (2026-07-13); pages at BibTeX export.
 
-[20] "Practical SMT-Based Type Error Localization." ICFP 2015.
-     DOI 10.1145/2784731.2784765.
-     Verified: title/venue/DOI (Phase 2). AUTHORS NOT YET VERIFIED.
+[20] Z. Pavlinovic, T. King, T. Wies. "Practical SMT-Based Type
+     Error Localization." ICFP 2015. DOI 10.1145/2784731.2784765.
+     Verified: FULL RECORD (2026-07-13); pages at BibTeX export.
 
 [21] A. J. Ko, B. A. Myers. "Extracting and Answering Why and Why
-     Not Questions about Java Program Output." ACM TOSEM, 2010.
-     DOI 10.1145/1824760.1824761.
-     Verified: authors/title/DOI (Phase 2); volume/issue session E.
+     Not Questions about Java Program Output." ACM TOSEM 20(2),
+     Article 4, Aug 2010. DOI 10.1145/1824760.1824761.
+     Verified: FULL RECORD (2026-07-13).
 
-[22] "VAST: Visualization of Abstract Syntax Trees within Language
-     Processors Courses." ACM SoftVis 2008.
+[22] F. J. Almeida-Martínez, J. Á. Velázquez-Iturbide (+ possibly
+     J. Urquiza-Fuentes). "VAST: Visualization of Abstract Syntax
+     Trees within Language Processors Courses." ACM SoftVis 2008.
      DOI 10.1145/1409720.1409759.
-     Verified: venue/DOI (Phase 2). Title wording + AUTHORS session E.
+     Verified: two authors + title/venue/DOI (2026-07-13); exact
+     2008 author list from the ACM landing page at BibTeX export
+     (the third name is attributed on related papers).
 
-[23] "Interactive educational simulations for promoting the
+[23] D. Rodríguez-Cerezo, M. Gómez-Albarrán, J.-L. Sierra-Rodríguez.
+     "Interactive educational simulations for promoting the
      comprehension of basic compiler construction concepts."
      ITiCSE 2013. DOI 10.1145/2462476.2462498.
-     Verified: title/venue/DOI (Phase 2). AUTHORS session E.
+     Verified: FULL RECORD (2026-07-13).
 
-[24] "JITScope: Interactive Visualization of JIT Compiler IR
-     Transformations." arXiv:2505.21599 (2025).
-     Verified: title/identifier (Phase 2). AUTHORS session E.
-     Preprint — cite as such.
+[24] K. Dalbo, Y. Ahmed, H. Lim. "JITScope: Interactive
+     Visualization of JIT Compiler IR Transformations."
+     arXiv:2505.21599 (2025). Preprint — cite as such.
+     Verified: FULL RECORD (2026-07-13).
 
-[25] "dcc --help: Transforming the Role of the Compiler by Generating
+[25] A. Taylor, A. Vassar, J. Renzella, H. Pearce. "dcc --help:
+     Transforming the Role of the Compiler by Generating
      Context-Aware Error Explanations with Large Language Models."
      SIGCSE 2024. DOI 10.1145/3626252.3630822.
-     Verified: title/venue/DOI (2026-07-11). AUTHORS session E.
-     Candidate for §5's LLM-era paragraph.
+     Verified: FULL RECORD (2026-07-13).
 
-[26] "Not the Silver Bullet: LLM-enhanced Programming Error Messages
-     are Ineffective in Practice." UKICER 2024.
-     DOI 10.1145/3689535.3689554.
-     Verified: title/venue/DOI (2026-07-11). AUTHORS session E.
-     Candidate: extends the contested-effectiveness line into the
-     LLM era — strengthens our claim discipline.
+[26] E. A. Santos, B. A. Becker. "Not the Silver Bullet:
+     LLM-enhanced Programming Error Messages are Ineffective in
+     Practice." UKICER 2024 (Best Paper). DOI 10.1145/3689535.3689554
+     (also arXiv:2409.18661).
+     Verified: FULL RECORD (2026-07-13). Extends the contested-
+     effectiveness line into the LLM era.
 
-## Debt — UNVERIFIED, unnumbered, must not be cited yet
+[27] Clang project. "'Clang' CFE Internals Manual" — the Diagnostics
+     subsystem: kinds defined in clang/Basic/Diagnostic*Kinds.td,
+     TableGen-generated IDs/severities/format strings.
+     https://clang.llvm.org/docs/InternalsManual.html
+     Verified: URL/content incl. the .td mechanism (2026-07-13).
+     Type: official documentation. Cited in: §6 D4, §10.1.
 
-- Clang Internals Manual / TableGen diagnostics (.td) — needed by
-  §6 D4's Clang mention; marker "[ref: E-debt Clang]" in the draft.
+[28] K. Andrews, R. R. Henry, W. K. Yamamoto. "Design and
+     Implementation of the UW Illustrated Compiler." PLDI 1988
+     (SIGPLAN Notices 23), pp. 105-114. DOI 10.1145/960116.54001.
+     Verified: authors/title/venue/pages/DOI (2026-07-13); the
+     Notices issue number (6 vs 7) conflicts across sources — pin
+     from the ACM landing page at BibTeX export. Companion: Henry &
+     Whaley, "The University of Washington illustrating compiler,"
+     SIGPLAN Notices 1990, DOI 10.1145/93548.93571 (title/DOI
+     verified). 1988 ancestry for pipeline-state visualization —
+     cite in §5 education cluster and §7.
+
+[29] A. V. Aho, M. S. Lam, R. Sethi, J. D. Ullman. "Compilers:
+     Principles, Techniques, and Tools," 2nd ed., Addison-Wesley,
+     2006. ISBN 978-0321486813.
+     Verified: FULL RECORD (2026-07-13). Cited in: §4 (background
+     textbook pointer).
+
+[30] "TraceDiff: Debugging Unexpected Code Behavior Using Trace
+     Divergences." VL/HCC 2017.
+     Verified: title/venue (2026-07-13 — C2 sweep). AUTHORS + DOI at
+     BibTeX export. Adjacent work surfaced by the counterexample
+     sweep: execution-trace tooling for STUDENT PROGRAMS (Whyline
+     family), not the compiler's own diagnostic path — cite in §5
+     interrogative-debugging cluster as the education-flavored
+     neighbor.
+
+## C2 counterexample sweep — PERFORMED 2026-07-13, negative result
+
+Targeted searches for user-facing per-diagnostic compiler execution
+traces (VL/HCC, ICSME/SANER framing + open queries). Nearest
+neighbours found: TraceDiff [30] (traces of student programs, not
+of the compiler); GCC's static-analyzer developer debug dumps
+(internal tooling for analyzer developers, gcc.gnu.org docs — not
+user-facing diagnostic structure; worth a defensive clause in §5).
+No counterexample to C2. The §5 claim keeps its "to our knowledge"
+form with this sweep as its recorded basis.
+
+## Debt — remaining, small
+
 - Elm "Compiler Errors for Humans" (Czaplicki, 2015, blog) — only if
-  Elm re-enters §5; §3 was reworded to not require it.
-- "UW illustrated compiler" — secondhand only; locate primary
-  (likely a late-1980s SIGCSE/CACM item) or drop.
-- Textbook citation for §4 pipeline background (Aho et al. "Dragon
-  Book" edition TBD) — verify edition/ISBN at session E.
+  Elm re-enters §5; currently unneeded (§3 reworded).
+- BibTeX-export items: pages for [2], [19], [20]; exact 2008 author
+  list for [22]; Notices issue for [28]; authors + DOI for [30].
+- Mechanical renumbering at assembly (session F) once §5 prose
+  fixes first-use order.

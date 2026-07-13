@@ -9,7 +9,7 @@ three runtime values, and the factory works around it by re-deriving
 one field (§6.2). At seventeen kinds the workaround is a documented
 oddity; at hundreds it would be a code smell; at Clang's or Rust's
 scale it is exactly why those projects hold messages in TableGen and
-Fluent respectively [10, ref: E-debt Clang]. The pattern's
+Fluent respectively [10, 27]. The pattern's
 load-bearing property — one place where all prose lives, indexed by
 root cause — survives that migration; what changes is the storage
 (data files instead of a switch) and the parameterization (named
