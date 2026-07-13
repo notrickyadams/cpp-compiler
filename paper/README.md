@@ -63,6 +63,16 @@ Done: all experiments (E1-E5, 3 protocol iterations), §6 v3, §9 v1.1
 | F | Phase 7 assembly: acmart LaTeX (compile on Overleaf; no local TeX assumed) + cross-consistency pass | paper/latex/ |
 | G | Phase 8: full-paper five-hat review + revisions | submission-ready v1 |
 
+Session F done: `paper/latex/` holds the assembled acmart document —
+`main.tex` (title/abstract/authors), 12 generated section files
+(`tools/md2tex.py`, regenerable from the .md sources), hand-built
+`sections/figures.tex` (F1/F5 as verbatim listings, F2/F3 TikZ, F6
+placeholder, F7 via the svg package), `references.bib` from the
+registry, and a README with the Overleaf build recipe + session-G
+punch list. Generated .tex is ASCII-clean; working-notes sections
+are stripped by the converter, not by hope. First compile happens on
+Overleaf (no local TeX).
+
 Estimate: ~7 focused sessions at the current cadence — roughly one
 to two weeks of elapsed collaboration. Explicitly OUTSIDE this
 estimate: external advisor/co-author review, venue-specific

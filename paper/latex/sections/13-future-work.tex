@@ -1,0 +1,69 @@
+\section{Future Work --- draft v1}
+\label{sec:future}
+
+\subsection{The user study (designed, not executed)}
+
+Per the claim discipline of Sections~3, 9, and 11, no human-benefit claim
+appears in this paper. The study that could license one is designed
+here so that running it is an execution task, not a research-design
+task.
+
+\textbf{Research question.} Does the full explanation format reduce
+time-to-correct-fix and improve cause-identification accuracy for
+novice programmers, relative to conventional single-line
+diagnostics --- and which components (trace, examples, fixes) do
+participants actually consult?
+
+\textbf{Built-in manipulation.} The compiler ships both renderers over
+the same diagnostic values (\S6.2, D6): the full sectioned format and
+the compact one-liner. The experimental conditions therefore differ
+\emph{only} in presentation --- same compiler, same detection, same spans ---
+which is precisely the isolation the contested prior studies
+struggled to guarantee \cite{denny2014enhancing,pettit2017enhanced}.
+
+\textbf{Design.} Between-subjects (a within-subjects design would leak
+explanation content across conditions), participants from CS1/CS2
+populations, block-randomized by course section. Task corpus: the
+nine E3 error programs plus a curated sample of E4 mutants, ordered
+by a fixed schedule. Measures: (i) time from first diagnostic
+display to first correct fix (compile-verified); (ii) cause-
+identification accuracy on a short structured response, scored by
+the rubric tradition of \cite{marceau2011measuring}; (iii) component-consultation behavior
+via screen recording (which sections are visibly read); (iv)
+optional self-report workload. Pilot with 10--15 participants to
+estimate variance; power the main study from the pilot (the
+literature's inconclusive results \cite{pettit2017enhanced} make an a-priori effect-size
+assumption indefensible --- that is the lesson of the enhanced-
+messages saga). Pre-register hypotheses and analysis (mixed-effects
+models; participant and task as random effects). Threats to plan
+for: novelty effects favoring the richer format, instructor
+enthusiasm bias, and the generalization limits of a kernel language
+--- all to be reported, not managed away.
+
+\subsection{Architecture extensions}
+
+\begin{itemize}
+\item \textbf{Transitive provenance.} Chain notes through value flow so a surviving instruction inherits the history of the dead instructions that produced its operands --- erasing limitation 3 at the cost of note growth that must itself be measured (the D14 lesson: gate construction, measure before shipping).
+\item \textbf{Trace budget policies} for deep languages (\S10.2): depth windows, repeated-frame collapse, sampling --- each a measurable tradeoff between trace fidelity and the overhead E1 bounds.
+\item \textbf{Provenance cost reduction} with a target: pack the span, intern notes, gate note construction; the 12--17\% figure (\S9.2) is the number to beat, the +38\% instruction growth the lever.
+\item \textbf{Knowledge-base externalization experiment}: migrate the switch to data files at the point positional details break again (\S10.1), measuring what the industrial DSL layer actually buys.
+\end{itemize}
+
+\subsection{Evaluation extensions}
+
+\begin{itemize}
+\item \textbf{Multi-seed mutation corpus} and the \textbf{intersection-set statistic} (limitations of E4, \S9.3); plus mutation operators derived from real student error distributions \cite{becker2019unhelpful} rather than token edits alone.
+\item \textbf{Tighter 20k confidence intervals} (more runs; cheap).
+\item \textbf{A modern-baseline E3} against current GCC/Clang --- the honest comparison this paper deliberately did not claim (\S9.3).
+\end{itemize}
+
+\subsection{Consumers}
+
+\begin{itemize}
+\item \textbf{LSP adapter} over the JSON export --- structured diagnostics, fixes, and traces are already in machine shape (\S7); the adapter is engineering, and would test the export contract against a consumer we did not design.
+\item \textbf{Linked highlighting} in the visualizer (assembly line $\rightarrow$ IR instruction $\rightarrow$ source token), for which the provenance fields already carry the joins.
+\item \textbf{Grounded generation}: the speculative \S10.6 pairing of recorded evidence with LLM explainers \cite{taylor2024dcc,santos2024silver}, which would need its own evaluation under exactly the discipline of \S13.1.
+\end{itemize}
+
+
+

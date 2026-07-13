@@ -1,0 +1,148 @@
+% Figures F1-F7. F1/F4/F5 are deliberately textual (they reproduce
+% real compiler output / real IR states verbatim -- fact-ledgered in
+% paper/figures/); F2/F3 are TikZ from the ledgered sources; F6 is a
+% placeholder pending the capture protocol; F7 is the generated,
+% self-checking SVG (tools/plot_overhead.py).
+
+\begin{figure*}[t]
+\begin{lstlisting}
+ERROR TYPE:                          |  HOW TO FIX:
+Malformed Expression                 |  Insert an operator between x and 2
+                                     |  or remove the extra value
+LOCATION:                            |
+line 3, column 14                    |  TRACE:
+    3 |     return x 2;              |  Parser
+      |              ^               |  -> Parser::parse()
+                                     |  -> Parser::parseFunctionDecl()
+ROOT CAUSE:                          |       [starting at line 1]
+Two expressions appeared             |  -> Parser::parseBlock()
+consecutively with no operator       |  -> Parser::parseStatement()
+between them.                        |       [at 'return' (line 3)]
+                                     |  -> Parser::parseReturnStmt()
+WHAT HAPPENED:                       |       [at 'return' (line 3)]
+The parser successfully read:        |  -> DiagnosticEngine::
+    return x                         |       malformedExpression()
+After completing that expression,    |       [diagnostic created]
+it encountered another value:        |
+    2                                |  INVALID:   x 2
+C++ requires an operator             |  VALID:     x + 2
+between values.                      |             x * 2
+                                     |             x = 2
+\end{lstlisting}
+\caption{One diagnostic, verbatim (two-column arrangement of the
+CLI's sequential output). Every field is data on one struct
+(\S\ref{sec:architecture}): the trace is recorded from the parser's
+actual descent with runtime details in brackets, the examples are
+synthesized from the offending tokens, and the same value renders
+identically in the visualizer (Fig.~\ref{fig:f6}).}
+\label{fig:f1}
+\end{figure*}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[node distance=3.5mm and 5mm, >={Stealth},
+  st/.style={draw, rounded corners=1pt, font=\scriptsize, inner sep=2.5pt},
+  dg/.style={draw, rounded corners=1pt, font=\scriptsize, inner sep=2.5pt, fill=black!8},
+  e/.style={->, font=\tiny}]
+\node[st] (lx) {Lexer};
+\node[st, right=of lx] (ps) {Parser};
+\node[st, right=of ps] (sa) {Semantic};
+\node[st, right=of sa] (ir) {IR};
+\node[st, right=of ir] (op) {Optimizer};
+\node[st, right=of op] (cg) {Codegen};
+\node[dg, below=7mm of ps, xshift=8mm] (dc) {DiagnosticCollector};
+\node[st, below=3.5mm of dc, xshift=-14mm] (r1) {\tiny full text};
+\node[st, below=3.5mm of dc] (r2) {\tiny compact};
+\node[st, below=3.5mm of dc, xshift=13mm] (r3) {\tiny JSON};
+\draw[e] (lx) -- (ps); \draw[e] (ps) -- (sa); \draw[e] (sa) -- (ir);
+\draw[e] (ir) -- (op); \draw[e] (op) -- (cg);
+\draw[e, dashed] (lx) |- (dc);
+\draw[e, dashed] (ps) -- (dc);
+\draw[e, dashed] (sa) |- (dc);
+\draw[e] (dc) -- (r1); \draw[e] (dc) -- (r2); \draw[e] (dc) -- (r3);
+\draw[e, dotted] (ir) to[bend left=18] node[above, font=\tiny]{span+note} (cg);
+\end{tikzpicture}
+\caption{The pipeline with its diagnostics spine. Every front-end
+stage returns output \emph{and} diagnostics (D1); IR, optimizer, and
+codegen emit none by design (D2) --- but carry provenance (dotted).
+Three renderers consume one struct (D6).}
+\label{fig:f2}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[node distance=3mm and 4mm, >={Stealth},
+  r/.style={draw, rounded corners=1pt, font=\scriptsize, align=center, inner sep=2.5pt},
+  e/.style={->, font=\tiny}]
+\node[r] (k) {Kind taxonomy\\ \tiny 17 kinds, 5 reserved};
+\node[r, right=of k] (kb) {Knowledge base\\ \tiny prose per root cause};
+\node[r, right=of kb] (tr) {TraceRecorder\\ \tiny per stage, RAII};
+\node[r, below=6mm of kb] (en) {DiagnosticEngine\\ \tiny 16 factory methods};
+\node[r, below=5mm of en] (d) {Diagnostic value};
+\node[r, below=5mm of d] (c) {Collector $\to$ text / compact / JSON};
+\draw[e] (k) -- (en); \draw[e] (kb) -- (en);
+\draw[e] (tr) -- node[right, font=\tiny]{snapshot} (en);
+\draw[e] (en) -- (d); \draw[e] (d) -- (c);
+\end{tikzpicture}
+\caption{The five-role diagnostic core (\S\ref{sec:architecture});
+the fifth role, the \texttt{StageOutput} transport, is Fig.~\ref{fig:f2}'s
+spine. The knowledge-base edge also carries the curated fallback
+chains, unreachable in the pipeline (D8).}
+\label{fig:f3}
+\end{figure}
+
+% F4 is folded into F1's trace panel for space at first assembly; a
+% dedicated sequence diagram is cut unless a reviewer asks. The
+% ledgered source remains in paper/figures/F2-F5-diagram-sources.md.
+
+\begin{figure}[t]
+\begin{lstlisting}
+source (line 2):   return (2 + 3) * 4;
+
+before        iteration 1          iteration 2         final
+[2] t0 = 2+3  CF: t0 = 5           (t0 gone)
+                 ;folded from
+                  't0 = 2 + 3'
+[2] t1 = t0*4 CP: t1 = 5 * 4       CF: t1 = 20         (t1 gone -- its
+                 ;t0->5 (CopyProp)    ;t0->5; folded     fold AND prop
+              DCE: t0 removed          from 't1 = 5*4'   notes die)
+                  (fold note dies) CP: return 20
+[2] return t1     return t1           ;t1->20 (CopyProp)
+                                   DCE: t1 removed     [2] return 20
+                                                          ;t1->20 (CopyProp)
+\end{lstlisting}
+\caption{Provenance through the fixed point for \texttt{(2+3)*4}.
+The source line survives every rewrite; transformation notes
+accumulate --- and die twice with the instructions DCE removes. The
+single surviving instruction reports only the propagation step:
+per-instruction provenance is honest but not transitive
+(\S\ref{sec:limitations}, item 3).}
+\label{fig:f5}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\fbox{\parbox{0.9\linewidth}{\centering\scriptsize\vspace{8mm}
+F6: visualizer screenshot --- capture per
+\texttt{paper/figures/F6-F7-notes.md} (full-config build; same
+program family as Fig.~\ref{fig:f1}).\vspace{8mm}}}
+\caption{The visualizer rendering the same diagnostic value as
+Fig.~\ref{fig:f1}: identical sections, identical recorded trace,
+because both surfaces are renderers over one struct (D6). Right: IR
+panel with per-instruction source-line gutters and optimizer notes.}
+\label{fig:f6}
+\end{figure}
+
+\begin{figure*}[t]
+\centering
+\includesvg[width=0.95\textwidth]{figures/F7-overhead}
+\caption{Always-on overhead of the explanation architecture versus
+the ablated baseline, before and after the lazy-formatting repair
+(D14), across program sizes (log scale). Whiskers: 95\% bootstrap
+CIs. Left: eager detail strings cost up to $\sim$175\% (trace) and
+$\sim$160\% (full). Right, same scale: recording collapses to CIs
+spanning zero; the remaining 12--17\% is provenance
+(\S\ref{sec:eval}). Generated by a script that hard-asserts every
+plotted median against the paper's tables.}
+\label{fig:f7}
+\end{figure*}

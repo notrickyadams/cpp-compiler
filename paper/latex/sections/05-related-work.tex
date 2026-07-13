@@ -1,0 +1,112 @@
+\section{Related Work --- draft v1}
+\label{sec:related}
+
+Five clusters position this work; the two concessions come first,
+because a reviewer should meet them in our words before theirs.
+
+\subsection{Structured diagnostics in production compilers}
+
+Production compilers have been converging on diagnostics-as-data by
+retrofit. Rust formalized its error format and structured
+suggestions in RFC 1644 \cite{rust-rfc1644}, emits machine-consumable JSON
+diagnostics \cite{rustc-json}, and maintains Fluent-based message infrastructure
+with a public error index \cite{rustc-dev-guide}. GHC's migration from \texttt{SDoc} strings
+to "errors as structured values" --- with \texttt{diagnosticReason} and
+\texttt{diagnosticHints} fields and public error codes since 9.6.1 --- is
+documented across its development tracker and implementers' reports
+\cite{ghc-structured-errors,welltyped2021ghc}, and the community maintains an error index \cite{haskell-error-index}. **Concession
+one:** the five-role core of \S6.2 is therefore not a new invention
+but a distillation; our claims are that designing it in from the
+first commit is cheap (\S8), that the isolated knowledge base and
+root-cause-granularity taxonomy are the load-bearing choices (\S6,
+D3--D4), and that the retrofit pain documented by these projects [4,
+9] is evidence the pattern matters. To our knowledge, none of these systems
+provides the recorded per-diagnostic execution trace of \S6.3. That
+knowledge is not passive: a targeted counterexample sweep (recorded
+in the reference registry) found only adjacent work --- trace tooling
+for \emph{student programs} \cite{suzuki2017tracediff}, and compiler-internal debug dumps
+aimed at the compiler's own developers rather than its users --- and
+if later work surfaces, this sentence and C2 narrow accordingly.
+
+\subsection{Optimization transparency and provenance}
+
+LLVM's remarks infrastructure \cite{llvm-remarks} is production-scale prior art for
+per-transformation records: passes emit typed remark objects with
+source locations, serialized to YAML and visualized with dedicated
+tools. \textbf{Concession two:} our per-instruction notes are the same
+mechanism at teaching scale. The residue we claim: unification of
+provenance with the \emph{diagnostic} architecture under one contract
+(one struct family, one renderer discipline, one JSON export), its
+measured always-on price (12--17\%, \S9.2 --- LLVM's remarks are opt-in
+per build), the human-readable in-text form (\texttt{\# line N:} comments in
+the emitted assembly, by analogy to \texttt{.loc} directives but for
+readers), and the negative result that per-instruction history is
+not transitive under dead-code elimination (\S6.4, \S9).
+
+\subsection{Error-message quality and its contested effectiveness}
+
+A half-century of work examines programming error messages; Becker
+et al.'s working-group report maps the landscape \cite{becker2019unhelpful}. Eye-tracking
+evidence shows developers genuinely read error messages and that
+reading difficulty predicts task performance \cite{barik2017developers}; design guidance
+for novice-facing messages continues to develop \cite{denny2021designing}. Yet controlled
+studies of \emph{enhanced} messages report effects from ineffectual \cite{denny2014enhancing}
+to inconclusive \cite{pettit2017enhanced} --- a contested record extending into the LLM era,
+where generated explanations show promise in some deployments \cite{taylor2024dcc}
+and ineffectiveness in others \cite{santos2024silver}. This contestation shapes our
+claim discipline (\S9.3): we measure component \emph{presence} with a
+mechanical instrument descended from Marceau et al.'s evaluation
+rubric \cite{marceau2011measuring}, and defer all helpfulness claims to a designed-but-
+unexecuted study (\S13). Our contribution is orthogonal to wording
+quality: an architecture that \emph{retains the evidence} any wording ---
+human-authored or LLM-generated \cite{taylor2024dcc} --- would need.
+
+\subsection{Error localization and interrogative debugging}
+
+Constraint-based localization computes \emph{where} the likely mistake
+is: general static-error diagnosis via Bayesian-ranked unsatisfiable
+constraints \cite{zhang2014general,zhang2017sherrloc}, type-error diagnosis \cite{zhang2015diagnosing}, and SMT-based
+localization \cite{pavlinovic2015smt}. These are complementary: they improve one field
+of our diagnostic (the span and root-cause selection), while our
+architecture governs how the whole explanation is assembled,
+preserved, and delivered. The Whyline \cite{ko2008debugging,ko2010extracting} pioneered
+why/why-not questions over \emph{program} executions via tracing and
+slicing, a family that extends into education through trace-
+divergence debugging of student code \cite{suzuki2017tracediff}; we ask the interrogative
+question of the \emph{compiler's own run} --- a far shallower trace,
+recorded live at negligible cost (\S9.2) rather than reconstructed by
+post-hoc analysis.
+
+\subsection{Compiler visualization in education}
+
+The lineage is old --- the UW Illustrated Compiler graphically
+displayed its own control and data structures to students in 1988
+\cite{andrews1988uw} --- and continues through AST construction animators \cite{almeida2008vast},
+interactive stage simulations \cite{rodriguez2013simulations}, and, recently, JIT IR-evolution
+explorers \cite{dalbo2025jitscope}. Our visualizer (\S7)
+sits in this lineage as a \emph{consumer} of the architecture rather than
+a contribution: its distinguishing property is that every panel
+renders the same structured values the CLI renders, because the
+architecture guarantees a single source of truth (\S6.2, D6).
+
+\subsection{Positioning summary (Table T2)}
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lllll}
+\toprule
+Capability & GHC \cite{ghc-structured-errors} & rustc \cite{rust-rfc1644,rustc-dev-guide,rustc-json} & LLVM \cite{llvm-remarks} & this work \\
+\midrule
+Structured diagnostics as values & retrofit & retrofit & --- & designed-in \\
+Root-cause-indexed public error index & \checkmark{} \cite{haskell-error-index} & \checkmark{} & --- & \checkmark{} (taxonomy = index, D3) \\
+Machine-readable diagnostic export & \checkmark{} & \checkmark{} \cite{rustc-json} & \checkmark{} (remarks) & \checkmark{} \\
+Per-diagnostic \textbf{recorded execution trace} & --- & --- & --- & \checkmark{} (\S6.3) \\
+Optimization provenance records & --- & --- & \checkmark{} opt-in \cite{llvm-remarks} & \checkmark{} always-on, unified, priced \\
+Diagnostic-quality \textbf{property} tests & snapshot-style & golden \texttt{.stderr} \cite{rustc-dev-guide} & --- & property-level + mutation-measured (\S9) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+

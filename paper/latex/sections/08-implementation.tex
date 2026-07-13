@@ -1,0 +1,91 @@
+\section{Implementation --- draft v1}
+\label{sec:impl}
+
+\subsection{Shape and size}
+
+The reference compiler is \textasciitilde{}5,943 lines of C++14 (measured at session
+B; re-measure at submission) with zero external dependencies --- the
+test framework, JSON emission, and visualization server are
+hand-rolled or stdlib-only, so the artifact builds from a compiler
+and Make alone. Distribution by subsystem:
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lllll}
+\toprule
+subsystem & LOC &  & subsystem & LOC \\
+\midrule
+diagnostics & 1,739 &  & ast (4 visitors) & 500 \\
+parser & 695 &  & main/driver CLI & 499 \\
+semantic & 604 &  & lexer & 421 \\
+ir & 463 &  & codegen & 385 \\
+optimizer & 370 &  & core + toolchain & 267 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The headline number is the first row: **the diagnostics subsystem is
+the largest in the compiler --- 29.3\% of the source** --- which is the
+architecture's priority expressed as a measurement rather than a
+slogan. (The share has grown across the project: 27\% at the initial
+audit, 28.2\% after trace recording, 29.3\% after lazy formatting.)
+
+\subsection{Mechanism invasiveness (E5)}
+
+From the introducing commit's diff, compiler source only: trace
+recording cost $\approx$200 lines (the recorder, three stage integrations,
+and surfacing through the renderers), and provenance $\approx$115 lines (IR
+fields, generator stamping, preservation discipline in two passes,
+assembly comments, JSON export) --- $\approx$320 lines across 17 files, \textasciitilde{}5.6\%
+of the then-current source, for both mechanisms. The lazy-formatting
+repair (D14) later replaced the recorder's internals and touched the
+20 scope call sites mechanically. H1's "localized mechanisms" claim
+rests on these numbers, with the honest caveat that locality was
+measured in a codebase designed to receive the mechanisms; \S10
+discusses what retrofit would change.
+
+\subsection{Testing as method}
+
+205 tests across nine suites (603 assertions) enforce three
+distinct kinds of claim. Unit suites pin stage behavior. End-to-end
+suites refuse to mock: generated assembly is assembled and linked
+with the real system toolchain, the produced executable is \emph{run},
+and its process exit code is asserted --- if codegen is wrong, a real
+binary misbehaves, not an abstraction. Property suites encode the
+diagnostic-quality invariants of \S6 and \S9.4, including the
+trace-accuracy tests whose runtime-fact assertions distinguish
+recorded from curated traces, and the \texttt{--check} silence tests that
+protect the measurement channel every number in \S9 depends on.
+There is no CI and no coverage measurement --- stated as fact; the
+suite runs on one platform, like everything else here.
+
+\subsection{Empirical construction on a legacy target}
+
+The target toolchain (GCC 6.3.0, MinGW.org, 32-bit) predates
+reliable documentation for several of its contracts, so codegen
+facts were established by probing rather than assumed: the CRT's
+entry-point requirements (the \texttt{\_main} symbol and \texttt{call \_\_\_main}
+sequence) were derived by diffing real \texttt{gcc -S} output on probe
+files after link failures whose messages pointed nowhere near the
+cause. The same empiricism extended to the measurement harness,
+where three Windows process-management quirks (a null \texttt{ExitCode}
+without a cached handle; peak-memory counters unreadable after
+exit; \texttt{CreateProcess} rejecting relative forward-slash paths)
+each produced data that \emph{looked} like compiler behavior until
+reproduced in isolation --- the \S9.2 discarded-campaign note is the
+largest instance of the same lesson. We record these because the
+paper's numbers pass through this machinery, and a reader repeating
+the experiments on Windows will meet the same artifacts.
+
+\subsection{Availability}
+
+The complete source, test suites, corpus generator, measurement and
+analysis scripts, mutation tooling, raw result CSVs for every
+campaign (including the discarded and superseded ones), and this
+paper's working documents are in one public repository, tagged for
+artifact evaluation at submission. Every number in \S9 regenerates
+from three documented commands.
+
+
+

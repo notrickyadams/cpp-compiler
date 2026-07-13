@@ -1,0 +1,79 @@
+\section{Background --- draft v1}
+\label{sec:background}
+
+\subsection{Vocabulary}
+
+Four terms carry precise meanings in this paper. A \textbf{diagnostic} is
+a structured value describing one user-source mistake: kind,
+severity, source span, message, root cause, explanation, ordered
+fixes, optional invalid/valid examples, and a trace. A \textbf{trace} is
+the sequence of compiler activities that led to a diagnostic's
+creation; this paper distinguishes \emph{recorded} traces (snapshots of
+the frames actually open at creation time) from \emph{curated} ones
+(hand-written reference chains --- the fallback, \S6.3). \textbf{Provenance}
+is the backward link from a compiled artifact to its origin: which
+source line an IR instruction or assembly block derives from, and
+which optimization decisions transformed it. \textbf{Explanation} is the
+umbrella for all of the above --- preserved compiler evidence, not
+machine-learning explainability and not post-hoc rationalization.
+
+\subsection{The source language}
+
+The vehicle is a C-like kernel language --- deliberately not "a C++
+subset" in any meaningful sense, though its programs are valid C.
+The complete grammar (verbatim from the parser's specification
+comment):
+
+\begin{verbatim}
+program       -> function_decl*  EOF
+function_decl -> type IDENT '(' param_list ')' block
+param_list    -> (type IDENT (',' type IDENT)*)  |  (empty)
+block         -> '{' statement* '}'
+statement     -> var_decl | return_stmt
+var_decl      -> type IDENT ('=' expression)? ';'
+return_stmt   -> 'return' expression? ';'
+expression    -> assignment
+assignment    -> IDENTIFIER '=' assignment | equality
+equality      -> comparison (('=='|'!=') comparison)*
+comparison    -> addition   (('<'|'>') addition)*
+addition      -> multiply   (('+'|'-') multiply)*
+multiply      -> unary      (('*'|'/') unary)*
+unary         -> primary
+primary       -> INTEGER_LITERAL | IDENTIFIER | '(' expression ')'
+type          -> 'int'
+\end{verbatim}
+
+Table T1 (feature inventory): \textbf{supported} --- \texttt{int} variables with
+optional initializers; arithmetic and comparison operators with C
+precedence; assignment as a right-associative expression
+(\texttt{a = b = c}); multi-parameter functions; multi-error reporting with
+panic-mode recovery. \textbf{Absent by design} --- control flow, function
+calls, strings, arrays, pointers, unary operators, additional types.
+Internally the type lattice contains \texttt{int}/\texttt{bool}/\texttt{unknown} (\texttt{bool}
+arises only as a comparison result; \texttt{unknown} is the error-recovery
+type that suppresses cascading type errors) and \texttt{void} (reserved).
+
+The smallness is the method, not a concession: every architectural
+mechanism must be visible whole, every diagnostic kind enumerable
+(seventeen, of which five are explicitly reserved-unreachable), and
+every claim checkable against a codebase a reviewer can actually
+read (\textasciitilde{}5.9K lines, \S8).
+
+\subsection{The pipeline}
+
+Compilation proceeds through eight stages: lexing (single-pass,
+maximal-munch), recursive-descent parsing to an AST whose nodes are
+pure data traversed by four independent visitors, semantic analysis
+(scope-stack symbol table; type resolution annotating the AST),
+lowering to a flat three-address IR, three optimization passes
+(constant folding, copy propagation, dead-code elimination) run
+together to a fixed point, code generation to 32-bit x86 assembly
+text, and an OS-facing driver that assembles and links a real
+executable via the system toolchain. The construction follows
+standard practice throughout \cite{aho2006compilers}; nothing in the
+pipeline itself is claimed as a contribution. What \S6 adds is the
+explanation obligation threaded through every one of these stages ---
+and \S9 the bill for it.
+
+
+
